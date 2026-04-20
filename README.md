@@ -1,4 +1,4 @@
-# Accounting-Autopilot
+# Accounting-Autopilot (Work in progress)
 Moderni, tekoälypohjainen SaaS-alusta suomalaisten asunto-osakeyhtiöiden kirjanpidon automaatioon. Järjestelmä on suunniteltu täyttämään Kirjanpitolain (KPL) vaatimukset ja automatisoimaan jopa 100 % kuukausittaisesta kirjanpitotyöstä.
 # Kirjanpito-AI (Accounting Autopilot)
 
