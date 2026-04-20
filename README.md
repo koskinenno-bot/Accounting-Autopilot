@@ -9,7 +9,7 @@ Moderni, tekoälypohjainen SaaS-alusta suomalaisten asunto-osakeyhtiöiden kirja
 
 ## Esittely
 
-Asunto-osakeyhtiöiden isännöinti ja kirjanpito on perinteisesti työlästä ja manuaalista. **Kirjanpito-AI** ratkaisee tämän yhdistämällä perinteisen sääntöpohjaisen automaation ja uusimman tekoälyn (Google Gemini 1.5 Flash). Järjestelmä lukee pankin tiliotteet, kohdistaa maksut viitenumeroiden perusteella ja tiliöi loput tapahtumat älykkäästi.
+Asunto-osakeyhtiöiden isännöinti ja kirjanpito on perinteisesti työlästä ja manuaalista. **Kirjanpito-AI** ratkaisee tämän yhdistämällä perinteisen sääntöpohjaisen automaation ja uusimman tekoälyn (Google Gemini 3.1 Flash). Järjestelmä lukee pankin tiliotteet, kohdistaa maksut viitenumeroiden perusteella ja tiliöi loput tapahtumat älykkäästi.
 
 <img width="2519" height="1286" alt="image" src="https://github.com/user-attachments/assets/7ab753e3-bb84-4a08-bd7c-38894f6ad65c" />
 
