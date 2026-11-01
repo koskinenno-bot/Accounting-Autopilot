@@ -4,8 +4,8 @@ import { uploadStatement } from '../controllers/bankController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
-// Tiliote on XML-tiedosto; rajataan koko, ettei muistiin ladata valtavia tiedostoja.
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// Tiliote: camt.053, CSV tai PDF; rajataan koko, ettei muistiin ladata valtavia tiedostoja.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 // multipart-body on luettavissa vasta multerin jälkeen
 const company = requireCompanyAccess({ required: true });
 

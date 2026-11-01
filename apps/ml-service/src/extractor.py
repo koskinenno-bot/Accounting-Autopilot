@@ -130,6 +130,70 @@ def _claude_extract(data: bytes, mime_type: str, accounts: List[Dict]) -> Dict:
     return result
 
 
+BANK_STATEMENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "accountIban": _NULLABLE_STR,
+        "transactions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "bookingDate": {"type": "string", "description": "Kirjauspäivä YYYY-MM-DD"},
+                    "amount": {"type": "number", "description": "Aina positiivinen euromäärä"},
+                    "direction": {"type": "string", "enum": ["CRDT", "DBIT"], "description": "CRDT = tilille tullut, DBIT = tililtä lähtenyt"},
+                    "counterpartyName": _NULLABLE_STR,
+                    "counterpartyIban": _NULLABLE_STR,
+                    "referenceNumber": {**_NULLABLE_STR, "description": "Viitenumero ilman välilyöntejä"},
+                    "message": _NULLABLE_STR,
+                    "archiveId": {**_NULLABLE_STR, "description": "Arkistointitunnus, jos tiliotteella"},
+                },
+                "required": ["bookingDate", "amount", "direction", "counterpartyName", "counterpartyIban",
+                             "referenceNumber", "message", "archiveId"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["accountIban", "transactions"],
+    "additionalProperties": False,
+}
+
+
+def extract_bank_statement(data: bytes) -> Dict:
+    """PDF-tiliote -> tapahtumalista (vaatii tekoälyn: pankkien PDF-asettelut vaihtelevat liikaa säännöille)."""
+    if not has_api_key():
+        raise ExtractionUnavailable("ANTHROPIC_API_KEY puuttuu: PDF-tiliotteen luku vaatii tekoälyn. Käytä camt.053- tai CSV-tiedostoa.")
+    import anthropic
+
+    client = anthropic.Anthropic()
+    document = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
+                                               "data": base64.standard_b64encode(data).decode("ascii")}}
+    try:
+        # Pitkä tiliote voi tuottaa paljon tapahtumia => striimaus (ei HTTP-aikakatkaisua)
+        with client.beta.messages.stream(
+            model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL),
+            max_tokens=64000,
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+            system=(
+                "Luet suomalaisen pankin PDF-tiliotteen tapahtumat. Poimi jokainen tapahtuma täsmälleen sellaisenaan: "
+                "älä jätä pois, älä yhdistä äläkä keksi tapahtumia. Ohita alku- ja loppusaldorivit sekä välisummat. "
+                "Summa on aina positiivinen; suunta kertoo, tuliko raha tilille (CRDT) vai lähtikö (DBIT)."
+            ),
+            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": BANK_STATEMENT_SCHEMA}},
+            messages=[{"role": "user", "content": [document, {"type": "text", "text": "Poimi tiliotteen tapahtumat."}]}],
+        ) as stream:
+            response = stream.get_final_message()
+    except anthropic.APIError as e:
+        raise ExtractionFailed(f"Claude API: {e}")
+    if response.stop_reason in ("refusal", "max_tokens"):
+        raise ExtractionFailed(f"Tiliotteen luku keskeytyi ({response.stop_reason})")
+    text = next((b.text for b in response.content if b.type == "text"), None)
+    if not text:
+        raise ExtractionFailed("Tekoäly ei palauttanut tapahtumia")
+    return json.loads(text)
+
+
 CLASSIFY_SCHEMA = {
     "type": "object",
     "properties": {

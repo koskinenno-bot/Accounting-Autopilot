@@ -11,7 +11,8 @@ from fastapi import Depends
 
 from auth import require_auth
 from classifier import KNOWLEDGE_BASE, SUSPENSE_ACCOUNT, is_expense_account, is_revenue_account, match_keywords  # noqa: F401
-from extractor import ExtractionFailed, ExtractionUnavailable, classify_with_claude, extract_voucher, has_api_key
+from extractor import (ExtractionFailed, ExtractionUnavailable, classify_with_claude, extract_bank_statement,
+                       extract_voucher, has_api_key)
 
 load_dotenv()
 
@@ -121,6 +122,25 @@ async def extract_voucher_endpoint(data: VoucherFile, user: dict = Depends(requi
     try:
         # Claude-kutsu on synkroninen => ajetaan säikeessä, ettei palvelin jumitu
         return await run_in_threadpool(extract_voucher, raw, data.mimeType, accounts)
+    except ExtractionUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except ExtractionFailed as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+class StatementFile(BaseModel):
+    fileBase64: str
+
+
+@app.post("/api/v1/ml/extract-bank-statement")
+async def extract_bank_statement_endpoint(data: StatementFile, user: dict = Depends(require_auth)):
+    """PDF-tiliote -> tapahtumat (Claude). bank-service muuntaa ne BankTransaction-muotoon."""
+    try:
+        raw = base64.b64decode(data.fileBase64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="fileBase64 ei ole kelvollista base64:ää")
+    try:
+        return await run_in_threadpool(extract_bank_statement, raw)
     except ExtractionUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
     except ExtractionFailed as e:

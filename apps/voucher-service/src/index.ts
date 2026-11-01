@@ -10,6 +10,7 @@ import { connectProducer } from './utils/kafka';
 import { uploadToS3, bucketName, downloadFromS3 } from './utils/s3';
 import { assertCompanyAccess, requireAuth, requireCompanyAccess } from './middleware/requireAuth';
 import { processVoucher } from './processing';
+import { startInboxWatcher } from './utils/inboxWatcher';
 import { createHash } from 'crypto';
 
 const app = express();
@@ -35,6 +36,55 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'voucher-service' });
 });
 
+type IncomingFile = { buffer: Buffer; mimetype: string; originalname: string; size: number };
+
+/** Tallennus MinIOon + tositerivi + luku taustalla. Yhteinen latausrajapinnalle ja saapuneet-kansiolle. */
+const createVoucher = async (companyId: string, file: IncomingFile, uploadedBy: string, voucherType?: string, voucherDate?: string) => {
+  const s3Key = await uploadToS3(file);
+  const voucher = await prisma.voucher.create({
+    data: {
+      companyId,
+      voucherType: (voucherType as any) || 'PURCHASE',
+      voucherDate: new Date(voucherDate || Date.now()),
+      ocrStatus: 'PENDING',
+      status: 'UNPROCESSED',
+      uploadedBy,
+      files: {
+        create: {
+          filename: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          s3Key: s3Key,
+          s3Bucket: bucketName,
+          checksum: createHash('sha256').update(file.buffer).digest('hex'), // eheyden todentaminen (KPL 2:10 §)
+        }
+      }
+    },
+    include: { files: true }
+  });
+  processVoucher(prisma, voucher.id, file).catch((err) => console.error(`Tositteen ${voucher.id} käsittely kaatui:`, err));
+  return voucher;
+};
+
+const MIME_BY_EXT: Record<string, string> = {
+  '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif',
+};
+
+// Saapuneet-kansio: inbox/<yhtiön tunnus>/tositteet/ -> tositteet luetaan automaattisesti
+startInboxWatcher({
+  subfolder: 'tositteet',
+  extensions: Object.keys(MIME_BY_EXT),
+  handle: async (companyId, f) => {
+    const voucher = await createVoucher(companyId, {
+      buffer: f.buffer,
+      originalname: f.filename,
+      mimetype: MIME_BY_EXT[path.extname(f.filename).toLowerCase()],
+      size: f.buffer.length,
+    }, 'inbox');
+    return `tosite ${voucher.id} luetaan`;
+  },
+});
+
 // Voucher upload endpoint
 app.post('/api/v1/vouchers/upload', requireAuth, upload.single('file'), requireCompanyAccess({ required: true }), async (req, res) => {
   try {
@@ -48,39 +98,13 @@ app.post('/api/v1/vouchers/upload', requireAuth, upload.single('file'), requireC
       return res.status(400).json({ error: 'companyId is required' });
     }
 
-    // 1. Upload to S3/MinIO
-    const s3Key = await uploadToS3(file);
-
-    // 2. Create Voucher record
-    const voucher = await prisma.voucher.create({
-      data: {
-        companyId,
-        voucherType: voucherType || 'PURCHASE',
-        voucherDate: new Date(voucherDate || Date.now()),
-        ocrStatus: 'PENDING',
-        status: 'UNPROCESSED',
-        uploadedBy: (req as any).user?.userId || 'system',
-        files: {
-          create: {
-            filename: file.originalname,
-            mimeType: file.mimetype,
-            size: file.size,
-            s3Key: s3Key,
-            s3Bucket: bucketName,
-            checksum: createHash('sha256').update(file.buffer).digest('hex'), // eheyden todentaminen (KPL 2:10 §)
-          }
-        }
-      },
-      include: { files: true }
-    });
-
-    // 3. Luku taustalla (tekoäly voi kestää kymmeniä sekunteja); tila näkyy GET /vouchers/:id
+    const voucher = await createVoucher(companyId, file, (req as any).user?.userId || 'system', voucherType, voucherDate);
+    // Luku taustalla (tekoäly voi kestää kymmeniä sekunteja); tila näkyy GET /vouchers/:id
     res.json({
       message: 'Tosite ladattu, luku käynnissä',
       voucherId: voucher.id,
-      s3Key: s3Key
+      s3Key: voucher.files[0].s3Key
     });
-    processVoucher(prisma, voucher.id, file).catch((err) => console.error(`Tositteen ${voucher.id} käsittely kaatui:`, err));
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });

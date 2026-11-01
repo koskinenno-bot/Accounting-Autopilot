@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import bankRoutes from './routes/bankRoutes';
 import { connectProducer, disconnectProducer } from './utils/kafka';
+import { startInboxWatcher } from './utils/inboxWatcher';
+import { importStatement } from './services/statementImporter';
 
 const app = express();
 const port = process.env.PORT || 3005;
@@ -27,6 +29,16 @@ app.get('/health', (req, res) => {
 
 app.listen(port, () => {
   console.log(`Bank Service running on port ${port}`);
+});
+
+// Saapuneet-kansio: inbox/<yhtiön tunnus>/tiliotteet/ -> tuonti automaattisesti
+startInboxWatcher({
+  subfolder: 'tiliotteet',
+  extensions: ['.xml', '.csv', '.txt', '.pdf'],
+  handle: async (companyId, file) => {
+    const result = await importStatement(companyId, file.buffer, file.filename);
+    return `${result.transactionCount} tapahtumaa (${result.format})`;
+  },
 });
 
 process.on('SIGTERM', async () => {

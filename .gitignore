@@ -29,3 +29,7 @@ Thumbs.db
 
 # Claude-varmuuskopiot
 _varmuuskopio_claude_*/
+
+# Saapuneet-kansio (tiliotteet ja tositteet tuodaan automaattisesti)
+inbox/*
+!inbox/LUEMINUT.md

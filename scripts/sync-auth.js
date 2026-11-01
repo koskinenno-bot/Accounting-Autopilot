@@ -16,3 +16,11 @@ for (const service of services) {
   fs.copyFileSync(source, target);
   console.log(`-> ${path.relative(root, target)}`);
 }
+
+// Saapuneet-kansion tarkkailija (tiliotteet ja tositteet)
+const inboxSource = path.join(root, 'packages', 'config', 'inbox', 'inboxWatcher.ts');
+for (const service of ['bank-service', 'voucher-service']) {
+  const target = path.join(root, 'apps', service, 'src', 'utils', 'inboxWatcher.ts');
+  fs.copyFileSync(inboxSource, target);
+  console.log(`-> ${path.relative(root, target)}`);
+}

@@ -74,7 +74,7 @@
   },
   "bank": {
     "title": "Pankki & Tiliotteet",
-    "uploadStatement": "Tuot tiliote (XML/camt)",
+    "uploadStatement": "Tuo tiliote (camt/CSV/PDF)",
     "reconciliation": "Maksun täsmäytys",
     "processing": "Käsitellään tiliotetta...",
     "success": "Tiliote käsitelty! Täsmätty laskuja: ",

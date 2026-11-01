@@ -187,7 +187,7 @@ const Dashboard = () => {
             ref={bankInputRef} 
             onChange={handleBankChange} 
             className="hidden" 
-            accept="application/xml,text/xml,.xml"
+            accept="application/xml,text/xml,.xml,text/csv,.csv,.txt,application/pdf,.pdf"
           />
           
           <button 
