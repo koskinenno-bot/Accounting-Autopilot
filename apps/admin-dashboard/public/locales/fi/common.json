@@ -16,7 +16,8 @@
   "nav": {
     "companies": "Yhtiöt",
     "financialStatements": "Tuloslaskelma ja tase",
-    "settings": "Asetukset"
+    "settings": "Asetukset",
+    "closing": "Tilinpäätös"
   },
   "pending": {
     "title": "Käsittelemättömät viennit",

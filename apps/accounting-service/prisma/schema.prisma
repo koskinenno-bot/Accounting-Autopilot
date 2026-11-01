@@ -82,6 +82,10 @@ model AccountingEntry {
   autoApprovable Boolean  @default(false) // tekoäly varma => "Hyväksy kaikki varmat"
   needsVoucher   Boolean  @default(false) // pankkimeno ilman tositetta (KPL 2:5 §)
   reviewNote     String?
+  // NORMAL | OPENING (avaus) | CLOSING (tuloksen siirto, ei tuloslaskelmaan) | ACCRUAL (jaksotus)
+  // | ACCRUAL_REVERSAL (jaksotuksen purku) | DEPRECIATION (poisto)
+  entryType      String   @default("NORMAL")
+  fixedAssetId   String?
 
   fiscalYear    FiscalYear? @relation(fields: [fiscalYearId], references: [id])
   lines         AccountingLine[]
@@ -123,6 +127,29 @@ model PurchaseInvoice {
 
   @@unique([companyId, supplierKey, invoiceNumber])
   @@index([companyId, status])
+}
+
+/// Käyttöomaisuus (esim. rakennus 1010) ja sen poistosuunnitelma.
+model FixedAsset {
+  id                     String   @id @default(uuid())
+  companyId              String
+  name                   String
+  accountNumber          String   // taseen tili, jolta poisto vähennetään (1010 Rakennukset)
+  acquisitionDate        DateTime
+  acquisitionCost        Decimal  @db.Decimal(15, 2)
+  // Ennen järjestelmän käyttöönottoa kertyneet poistot (avaava kirjanpitoarvo = hankintameno - tämä)
+  priorDepreciation      Decimal  @db.Decimal(15, 2) @default(0)
+  // DECLINING = menojäännös % / STRAIGHT_LINE = tasapoisto vuosina / MANUAL = summa käsin
+  // (taloyhtiössä poisto vastaa usein lainanlyhennyksiä)
+  method                 String
+  rate                   Decimal? @db.Decimal(5, 2)  // menojäännöspoiston %
+  usefulLifeYears        Int?
+  manualAmount           Decimal? @db.Decimal(15, 2)
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 /// Käyttäjän korjauksista opittu tiliöinti: toimittaja -> tili (yhtiökohtainen).

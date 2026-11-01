@@ -449,31 +449,3 @@ export const createFiscalYear = async (req: Request, res: Response) => {
   }
 };
 
-/** Tilikauden sulkeminen: lukitsee kaikki kirjatut viennit (KPL 2:7 §). Luonnokset estävät sulkemisen. */
-export const closeFiscalYear = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const fy = await prisma.fiscalYear.findUnique({ where: { id } });
-    if (!fy) return res.status(404).json({ error: 'Tilikautta ei löydy' });
-    if (!(await assertCompanyAccess(req, res, fy.companyId))) return;
-    if (fy.status === 'CLOSED') return res.status(409).json({ error: 'Tilikausi on jo suljettu' });
-
-    const drafts = await prisma.accountingEntry.count({ where: { fiscalYearId: id, status: EntryStatus.DRAFT } });
-    if (drafts > 0) {
-      return res.status(409).json({ error: `Tilikaudella on ${drafts} hyväksymätöntä luonnosta` });
-    }
-
-    const now = new Date();
-    const [locked, closed] = await prisma.$transaction([
-      prisma.accountingEntry.updateMany({
-        where: { fiscalYearId: id, status: EntryStatus.POSTED },
-        data: { status: EntryStatus.LOCKED, lockedAt: now },
-      }),
-      prisma.fiscalYear.update({ where: { id }, data: { status: 'CLOSED' } }),
-    ]);
-    return res.json({ fiscalYear: closed, lockedEntries: locked.count });
-  } catch (error) {
-    console.error('Close fiscal year error:', error);
-    return res.status(500).json({ error: 'Tilikauden sulkeminen epäonnistui' });
-  }
-};

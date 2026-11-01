@@ -15,6 +15,7 @@ export const TATO_TEMPLATE = [
   { number: '1000', name: 'Maa-alueet', type: AccountType.ASSET },
   { number: '1010', name: 'Rakennukset ja rakennelmat', type: AccountType.ASSET },
   { number: '1700', name: 'Myyntisaamiset', type: AccountType.ASSET },
+  { number: '1800', name: 'Siirtosaamiset', type: AccountType.ASSET },
   { number: '1900', name: 'Pankkitili 1', type: AccountType.ASSET },
   { number: '1990', name: 'Selvitettävät erät', type: AccountType.ASSET },
 
@@ -24,6 +25,7 @@ export const TATO_TEMPLATE = [
   { number: '2200', name: 'Tilikauden tulos', type: AccountType.EQUITY },
   { number: '2500', name: 'Lainat rahoituslaitoksilta', type: AccountType.LIABILITY },
   { number: '2800', name: 'Ostovelat', type: AccountType.LIABILITY },
+  { number: '2900', name: 'Siirtovelat', type: AccountType.LIABILITY },
 
   // HOITOTUOTOT
   { number: '3000', name: 'Hoitovastikkeet', type: AccountType.REVENUE },
@@ -43,6 +45,7 @@ export const TATO_TEMPLATE = [
   { number: '4700', name: 'Sähkö ja kaasu', type: AccountType.EXPENSE },
   { number: '4800', name: 'Vakuutukset', type: AccountType.EXPENSE },
   { number: '4900', name: 'Pankkikulut', type: AccountType.EXPENSE },
+  { number: '6900', name: 'Poistot', type: AccountType.EXPENSE },
   { number: '7000', name: 'Korjaukset', type: AccountType.EXPENSE },
 
   // RAHOITUSKULUT
@@ -61,6 +64,14 @@ export const initializeChartOfAccounts = async (companyId: string) => {
     data: accounts,
     skipDuplicates: true,
   });
+};
+
+/** Lisää tilikarttapohjan uudet tilit olemassa oleville yhtiöille (käynnistyksessä; idempotentti). */
+export const syncChartTemplates = async () => {
+  const companies = await prisma.account.findMany({ distinct: ['companyId'], select: { companyId: true } });
+  let added = 0;
+  for (const { companyId } of companies) added += (await initializeChartOfAccounts(companyId)).count;
+  if (added) console.log(`Tilikarttapohja päivitetty: ${added} uutta tiliä ${companies.length} yhtiölle`);
 };
 
 export const accountExists = async (companyId: string, accountNumber: string) => {

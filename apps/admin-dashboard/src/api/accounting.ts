@@ -60,6 +60,58 @@ export const deleteEntry = async (id: string) => {
   await accountingApi.delete(`/accounting/entries/${id}`);
 };
 
+// --- Tilikaudet ja tilinpäätös ---
+
+export const getFiscalYears = async (companyId: string) => {
+  const { data } = await accountingApi.get('/accounting/fiscal-years', { params: { companyId } });
+  return data;
+};
+
+export const getClosingChecklist = async (fiscalYearId: string) => {
+  const { data } = await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/closing-checklist`);
+  return data;
+};
+
+export const closeFiscalYear = async (fiscalYearId: string, acknowledgeWarnings: boolean) => {
+  const { data } = await accountingApi.post(`/accounting/fiscal-years/${fiscalYearId}/close`, { acknowledgeWarnings });
+  return data;
+};
+
+export const setOpeningBalances = async (fiscalYearId: string, rows: { accountNumber: string; name?: string; balance: number }[]) => {
+  const { data } = await accountingApi.post(`/accounting/fiscal-years/${fiscalYearId}/opening-balances`, { rows });
+  return data;
+};
+
+export const getAssets = async (companyId: string) => {
+  const { data } = await accountingApi.get('/accounting/assets', { params: { companyId } });
+  return data;
+};
+
+export const createAsset = async (asset: Record<string, unknown>) => {
+  const { data } = await accountingApi.post('/accounting/assets', asset);
+  return data;
+};
+
+export const getDepreciation = async (fiscalYearId: string) => {
+  const { data } = await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/depreciation`);
+  return data;
+};
+
+export const postDepreciation = async (fiscalYearId: string, items: { assetId: string; amount: number }[]) => {
+  const { data } = await accountingApi.post(`/accounting/fiscal-years/${fiscalYearId}/depreciation`, { items });
+  return data;
+};
+
+export const getAccruals = async (fiscalYearId: string) => {
+  const { data } = await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/accruals`);
+  return data;
+};
+
+export const createAccrual = async (fiscalYearId: string, accrual: { kind: string; accountNumber: string; amount: number; description: string; voucherNumber?: string }) => {
+  const { data } = await accountingApi.post(`/accounting/fiscal-years/${fiscalYearId}/accruals`, accrual);
+  return data;
+};
+
 export const createEntry = async (entryData: any) => {
   const { data } = await accountingApi.post('/accounting/entries', entryData);
   return data;

@@ -5,6 +5,7 @@ import cors from 'cors';
 import accountingRoutes from './routes/accountingRoutes';
 import { connectConsumer, disconnectConsumer } from './utils/kafka';
 import { prisma } from './db';
+import { syncChartTemplates } from './services/chartOfAccountsService';
 
 const app = express();
 const port = process.env.PORT || 3002;
@@ -14,6 +15,8 @@ app.use(express.json());
 
 // Connect consumer
 connectConsumer();
+// Uudet pohjatilit (esim. 1800 Siirtosaamiset, 2900 Siirtovelat, 6900 Poistot) myös vanhoille yhtiöille
+syncChartTemplates().catch((err) => console.error('Tilikarttapohjan päivitys epäonnistui:', err));
 
 // Routes
 app.use('/api/v1/accounting', accountingRoutes);

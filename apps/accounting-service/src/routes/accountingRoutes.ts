@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import * as entryController from '../controllers/entryController';
+import * as fiscal from '../controllers/fiscalController';
 import { getAccounts } from '../services/chartOfAccountsService';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
@@ -21,7 +22,16 @@ router.get('/stats', company, entryController.getStats as any);
 
 router.get('/fiscal-years', company, entryController.listFiscalYears as any);
 router.post('/fiscal-years', company, entryController.createFiscalYear as any);
-router.post('/fiscal-years/:id/close', entryController.closeFiscalYear as any);
+// Tilinpäätös: :id-reitit tarkistavat tilikauden yhtiön käsittelijässä
+router.post('/fiscal-years/:id/close', fiscal.closeFiscalYear as any);
+router.get('/fiscal-years/:id/closing-checklist', fiscal.getClosingChecklist as any);
+router.post('/fiscal-years/:id/opening-balances', fiscal.setOpeningBalances as any);
+router.get('/fiscal-years/:id/depreciation', fiscal.getDepreciation as any);
+router.post('/fiscal-years/:id/depreciation', fiscal.postDepreciation as any);
+router.get('/fiscal-years/:id/accruals', fiscal.getAccruals as any);
+router.post('/fiscal-years/:id/accruals', fiscal.createAccrual as any);
+router.get('/assets', company, fiscal.listAssets as any);
+router.post('/assets', company, fiscal.createAsset as any);
 
 router.get('/accounts', company, (async (req: Request, res: Response) => {
   const { companyId } = req.query;

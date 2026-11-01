@@ -16,7 +16,8 @@
   "nav": {
     "companies": "Companies",
     "financialStatements": "Income statement & balance sheet",
-    "settings": "Settings"
+    "settings": "Settings",
+    "closing": "Year-end closing"
   },
   "pending": {
     "title": "Unprocessed entries",

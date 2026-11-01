@@ -1,8 +1,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { getMaintenanceCalculation } from '../api/reports';
+import { getMaintenanceCalculation, openReportPdf } from '../api/reports';
 import { getCompanies } from '../api/companies';
+import FiscalYearSelect from '../components/FiscalYearSelect';
+import { useState } from 'react';
+import { Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Calculator, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
 
@@ -12,15 +15,24 @@ const VastikeReportPage: React.FC = () => {
   // (aiemmin kovakoodattu 'test-company-id' => raportti näytti aina nollia).
   const { data: companies, isLoading: companiesLoading } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
   const companyId: string | undefined = companies?.[0]?.id;
+  const [fiscalYearId, setFiscalYearId] = useState<string>();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['maintenanceCalculation', companyId],
-    queryFn: () => getMaintenanceCalculation(companyId as string),
-    enabled: !!companyId,
+    queryKey: ['maintenanceCalculation', companyId, fiscalYearId],
+    queryFn: () => getMaintenanceCalculation(companyId as string, fiscalYearId),
+    enabled: !!companyId && !!fiscalYearId,
   });
 
-  if (companiesLoading || (companyId && isLoading)) return <div className="p-8 text-center">{t('common.loading')}</div>;
-  if (!companyId) return <div className="p-8 text-center text-slate-400">Ei yhtiötä. Lisää yhtiö Yhtiöt-sivulla.</div>;
+  if (!companiesLoading && !companyId) return <div className="p-8 text-center text-slate-400">Ei yhtiötä. Lisää yhtiö Yhtiöt-sivulla.</div>;
+  if (companiesLoading || !fiscalYearId || isLoading) {
+    return (
+      <div className="p-8 text-center">
+        {t('common.loading')}
+        {/* valitsin hakee tilikaudet ja asettaa oletuksen */}
+        <div className="hidden"><FiscalYearSelect companyId={companyId} value={fiscalYearId} onChange={setFiscalYearId} /></div>
+      </div>
+    );
+  }
   if (error || !data) return <div className="p-8 text-center text-red-500">Virhe raportin latauksessa</div>;
 
   const formatCurrency = (amount: number) => 
@@ -67,6 +79,16 @@ const VastikeReportPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{t('reports.vastikelaskelma')}</h1>
           <p className="text-gray-500">Tilikauden rahastokohtainen toteuma ja ylijäämäseuranta</p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <FiscalYearSelect companyId={companyId} value={fiscalYearId} onChange={setFiscalYearId} />
+          <button
+            type="button"
+            onClick={() => openReportPdf(companyId as string, 'maintenance-calculation', fiscalYearId).catch(() => window.alert('PDF:n luonti epäonnistui'))}
+            className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white flex items-center gap-2 text-sm font-semibold"
+          >
+            <Download className="w-4 h-4" />PDF
+          </button>
         </div>
       </div>
 

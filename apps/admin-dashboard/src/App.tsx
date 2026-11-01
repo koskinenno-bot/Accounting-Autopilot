@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import CompaniesPage from './pages/CompaniesPage';
 import PendingEntriesPage from './pages/PendingEntriesPage';
 import LedgerPage from './pages/LedgerPage';
+import ClosingPage from './pages/ClosingPage';
 import InvoicesPage from './pages/InvoicesPage';
 import ReportsPage from './pages/ReportsPage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -39,6 +40,7 @@ function App() {
             <Route path="/billing" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
             <Route path="/pending" element={<ProtectedRoute><PendingEntriesPage /></ProtectedRoute>} />
             <Route path="/ledger" element={<ProtectedRoute><LedgerPage /></ProtectedRoute>} />
+            <Route path="/closing" element={<ProtectedRoute><ClosingPage /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
             <Route path="/reports/vastike" element={<ProtectedRoute><VastikeReportPage /></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />

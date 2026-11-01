@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -46,6 +46,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { icon: Users, label: t('nav.companies'), path: '/companies', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
     { icon: FileText, label: t('nav.financialStatements'), path: '/reports', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
     { icon: ArrowRightLeft, label: t('reports.vastikelaskelma'), path: '/reports/vastike', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
+    { icon: CalendarCheck, label: t('nav.closing'), path: '/closing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ACCOUNTANT'] },
     { icon: CreditCard, label: t('invoices.title'), path: '/billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'ACCOUNTANT'] },
     { icon: Shield, label: t('documents.title'), path: '/documents', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
     { icon: Mail, label: t('notifications.title'), path: '/notifications', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER'] },
