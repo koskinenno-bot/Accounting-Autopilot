@@ -1,0 +1,13 @@
+Kirjauspäivä;Määrä;Maksaja;Maksunsaaja;Nimi;Otsikko;Viitenumero;Valuutta;Arkistointitunnus
+2026/11/03;157,50;Aino Esimerkki;As Oy Demokoti;Aino Esimerkki;Viitesiirto;490710078;EUR;DEMO-2026-11-001
+2026/11/05;234,00;Eero Testinen;As Oy Demokoti;Eero Testinen;Viitesiirto;490710081;EUR;DEMO-2026-11-002
+2026/11/05;306,00;Liisa Malli;As Oy Demokoti;Liisa Malli;Viitesiirto;490710094;EUR;DEMO-2026-11-003
+2026/11/05;360,00;Matti Demo;As Oy Demokoti;Matti Demo;Viitesiirto;490710104;EUR;DEMO-2026-11-004
+2026/11/05;333,00;Pekka Harjoitus;As Oy Demokoti;Pekka Harjoitus;Viitesiirto;490710120;EUR;DEMO-2026-11-005
+2026/11/13;-1389,40;As Oy Demokoti;Kaukolämpö Esimerkki Oy;Kaukolämpö Esimerkki Oy;Lasku KL-88412;8841200017;EUR;DEMO-2026-11-006
+2026/11/14;-650,00;As Oy Demokoti;Isännöintitoimisto Malli Oy;Isännöintitoimisto Malli Oy;Lasku IS-2026-11-07;2026110074;EUR;DEMO-2026-11-007
+2026/11/17;-402,15;As Oy Demokoti;Esimerkin Vesi Oy;Esimerkin Vesi Oy;Lasku 2026-10-5531;;EUR;DEMO-2026-11-008
+2026/11/18;-198,60;As Oy Demokoti;Sähkö Kauppa Oy;Sähkö Kauppa Oy;Lasku S-301977;;EUR;DEMO-2026-11-009
+2026/11/19;-245,00;As Oy Demokoti;Rakennuspalvelu Virtanen Tmi;Rakennuspalvelu Virtanen Tmi;Lasku V-0412;412000096;EUR;DEMO-2026-11-010
+2026/11/21;-86,00;As Oy Demokoti;Lukkoliike Avain Oy;Lukkoliike Avain Oy;Avaimet B-rappu;;EUR;DEMO-2026-11-011
+2026/11/30;-12,50;As Oy Demokoti;Demopankki Oyj;Demopankki Oyj;Palvelumaksu 11/2026;;EUR;DEMO-2026-11-012

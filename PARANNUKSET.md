@@ -83,9 +83,70 @@ Huom:
 - `apps/reporting-service/tests` – tuloslaskelma, tase täsmää, vastikelaskelma
 - `apps/ml-service/tests` – ML-tilit löytyvät tilikartasta
 
+## Automaattinen kirjanpito aineistoista (1.11.2026, iltapäivä)
+
+Tavoite: asiakas lataa vain aineistot (tiliotteet ja tositteet), ja järjestelmä muodostaa niistä
+pääkirjan, tuloslaskelman, taseen ja vastikelaskelman. Ihminen hyväksyy ja käsittelee vain epäselvät.
+
+### Työnkulku
+1. **Tositteet** (ostolasku, kuitti; PDF tai kuva) dashboardista, rajapinnasta tai kansiosta
+   `inbox/<yhtiön tunnus>/tositteet/` → voucher-service tallentaa MinIOon → ml-service lukee
+   (toimittaja, Y-tunnus, laskunumero, päivä, eräpäivä, suoritusjakso, summa, ALV, viite, IBAN, tiliehdotus)
+   → accounting-service: **ostolasku + luonnos D kulutili / K 2800 Ostovelat laskun päivälle** (suoriteperuste),
+   tosite linkitettynä.
+2. **Tiliotteet** (camt.053, pankin CSV tai PDF) dashboardista tai kansiosta `inbox/<yhtiön tunnus>/tiliotteet/`:
+   - saapuva maksu viitteellä → myyntisaamisen kuittaus ja vastikelasku maksetuksi,
+   - lähtevä maksu → **täsmäytys avoimeen ostolaskuun** (1. viite, 2. summa + toimittaja/IBAN ±14 pv eräpäivästä,
+     3. yksikäsitteinen summa) → D 2800 / K 1900, ostolasku maksetuksi,
+   - täsmäämätön meno → tiliöinti (opittu toimittajan tili > avainsanat > tekoäly) ja merkintä **"tosite puuttuu"**;
+     kun tosite myöhemmin saapuu, se liitetään olemassa olevaan vientiin (kulua ei kirjata kahdesti).
+3. **Käsittelemättömät**: tilin vaihto (järjestelmä oppii toimittaja → tili), kohdistus laskuun, tositteen
+   esikatselu, "Hyväksy kaikki varmat". Tositteeton vienti hyväksytään vain erikseen vahvistaen (esim. pankkikulut).
+4. **Tilinpäätös**: avaussaldot (CSV), käyttöomaisuus ja poistot, jaksotukset (ehdotukset suoritusjaksoista),
+   tarkistuslista ja tilikauden sulkeminen (tulos 2200 → seuraavan kauden 2100, viennit lukitaan, seuraava kausi
+   avataan saldoineen, jaksotukset puretaan). Raportit tilikausittain taloyhtiön kaavalla + PDF.
+
+### Tekoäly (Claude API)
+- Avain: `apps/ml-service/.env` → `ANTHROPIC_API_KEY=...` ja ml-service-ikkunan uudelleenkäynnistys.
+  Malli `ANTHROPIC_MODEL` (oletus `claude-opus-5-5`); kieltäytymistilanteessa API vaihtaa automaattisesti
+  varamalliin (`fallbacks: "default"`).
+- **Ilman avainta**: tekstipohjaiset PDF-laskut luetaan sääntöpohjaisesti (luonnokset aina tarkistettaviksi),
+  CSV- ja camt-tiliotteet toimivat täysin. Kuvatositteet, skannatut PDF:t, PDF-tiliotteet ja tuntemattomien
+  toimittajien tekoälytiliöinti vaativat avaimen.
+
+### Käyttöoikeudet
+Jokainen palvelu tarkistaa yhtiöjäsenyyden (user-service `GET /companies/:id/access`, välimuisti 60 s);
+myös id-pohjaiset reitit (vienti, lasku, dokumentti, tosite, tilikausi) tarkistavat kohteen yhtiön.
+Palveluiden väliset kutsut (`x-service-token`) ohittavat tarkistuksen; reporting-service välittää käyttäjän
+tunnisteen, jolloin accounting-service tarkistaa oikeuden.
+
+### Tiliotteiden automaattinen nouto pankista (jatkokehitys)
+Suoraa pankkiyhteyttä ei voi rakentaa ilman pankin kanssa tehtyä sopimusta ja tunnuksia. Nykyinen
+`inbox/`-kansio on rajapinta, johon mikä tahansa näistä voidaan kytkeä ilman muutoksia kirjanpitoon:
+1. **Pankin tiliotepalvelu (Web Services / pankkiyhteysohjelmisto)**: yrityksen pankki toimittaa camt.053-tiliotteet
+   päivittäin. Pankkiyhteysohjelmisto tai SFTP-siirto ohjataan kirjoittamaan tiedostot kansioon
+   `inbox/<yhtiön tunnus>/tiliotteet/`. Tarvitaan pankin Web Services -sopimus ja varmenne.
+2. **PSD2-tilitietopalvelu (AISP)**, esim. Enable Banking tai muu Finanssivalvonnan rekisteröimä palveluntarjoaja:
+   taloyhtiön edustaja antaa suostumuksen (voimassa enintään 180 vrk kerrallaan), ja ajastettu tehtävä hakee
+   tapahtumat palveluntarjoajan rajapinnasta. Toteutus: uusi moduuli bank-serviceen, joka muuntaa tapahtumat
+   `BankTransaction`-muotoon ja kutsuu `importStatement`-funktiota (sama kuin tiedostotuonnissa). Tapahtuman
+   pankkitunniste viedään `entryReference`-kenttään, jolloin päällekkäiset haut eivät kirjaa tuplia.
+3. **Sähköposti**: pankin tai toimittajien sähköpostit ohjataan postilaatikkoon, josta liitteet tallennetaan
+   inbox-kansioon (esim. Power Automate / Gmail-sääntö + synkronoitu kansio).
+
+### Demo
+`python scripts/samples/generate_invoices.py` (ostolasku-PDF:t) ja `npm run demo`: As Oy Demokoti,
+lokakuu pankkipohjaisesti (camt) ja marraskuu tositteet ensin (6 ostolaskua + Nordea-CSV). Näytteet:
+`scripts/samples/` (ostolaskut, viiden pankin CSV-muodot, avaustase).
+
+### Testit
+accounting 16, bank 7, ml 10, reporting 8, invoicing (viitenumero) – kaikki läpi.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
-1. **Yhtiökohtainen käyttöoikeus** kirjanpidossa, laskutuksessa jne. Nyt vaaditaan kirjautuminen, mutta kirjautunut käyttäjä voi vielä kysyä toisen yhtiön tietoja `companyId`:llä. Ratkaisu: yhtiöjäsenyydet tokeniin tai tarkistuskutsu user-serviceen.
-2. **OCR** tositteille (summa, päivä, toimittaja), jotta tositeautomaatio tuottaa vientejä.
-3. Dashboardiin painike luonnosten hyväksyntään ja tilikauden sulkemiseen (rajapinnat ovat valmiina).
-4. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
-5. Varsinaisen TATO-tilikartan käyttöönotto (nykyinen on yksinkertaistus).
+1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
+   sulkeminen dashboardissa~~ (tehty).
+2. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
+3. Varsinaisen TATO-tilikartan käyttöönotto (nykyinen on yksinkertaistus) ja ALV-velvollisten yhtiöiden ALV-käsittely.
+4. Myyntisaamisten ja ostovelkojen reskontraraportit sekä maksumuistutukset myöhässä oleville vastikkeille.
+5. Usean yhtiön valinta dashboardiin (nyt näytetään käyttäjän ensimmäinen yhtiö).
+6. Tilinpäätöksen liitetiedot ja toimintakertomus (AOYL 10:5–6 §) sekä tilintarkastajan käyttöoikeus.

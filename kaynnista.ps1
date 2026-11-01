@@ -1,4 +1,4 @@
-# AI ACCOUNT_V3 - koko kehitysympäristön käynnistys yhdellä komennolla.
+﻿# AI ACCOUNT_V3 - koko kehitysympäristön käynnistys yhdellä komennolla.
 # Käyttö (PowerShell, projektikansiossa):
 #   powershell -ExecutionPolicy Bypass -File .\kaynnista.ps1
 # Valinnaiset: -SkipInstall (ohita npm/pip install), -SkipDb (ohita prisma-vaiheet)
@@ -42,7 +42,8 @@ if (-not $SkipInstall) {
   npm install
   if ($LASTEXITCODE -ne 0) { throw 'npm install epäonnistui' }
   Step 'Python-riippuvuudet (reporting-service, ml-service)'
-  python -m pip install -q fastapi uvicorn httpx python-dotenv PyJWT
+  # anthropic = tositteiden tekoälyluku, pypdf = PDF-tositteiden luku ilman avainta, reportlab = PDF-raportit
+  python -m pip install -q fastapi uvicorn httpx python-dotenv PyJWT anthropic pypdf reportlab
 }
 
 # 3. Prisma: client + skeema tietokantaan
@@ -76,3 +77,7 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 Start-Process 'http://localhost:5173'
 Write-Host "`nValmis. Dashboard: http://localhost:5173  (palvelut näkyvät omissa ikkunoissaan; sulje ikkuna pysäyttääksesi palvelun)" -ForegroundColor Green
+Write-Host "Saapuneet-kansio: $root\inbox\<yhtiön tunnus>\tiliotteet ja \tositteet (ks. inbox\LUEMINUT.md)"
+if (-not (Select-String -Path "$root\apps\ml-service\.env" -Pattern '^ANTHROPIC_API_KEY=.+' -Quiet)) {
+  Write-Host 'Tekoälyluku pois päältä: lisää ANTHROPIC_API_KEY tiedostoon apps\ml-service\.env (ks. PARANNUKSET.md)' -ForegroundColor Yellow
+}

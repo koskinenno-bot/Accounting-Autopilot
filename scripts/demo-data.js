@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 /**
- * Demodata: As Oy Demokoti, lokakuu 2026.
+ * Demodata: As Oy Demokoti, loka- ja marraskuu 2026.
  *
  * Ajaa koko automaatioketjun oikeiden rajapintojen kautta:
- *   käyttäjä -> yhtiö (tilikartta + tilikausi Kafkan kautta) -> osakkaat ->
- *   vastikelaskutus -> CAMT.053-tiliote -> automaattiset kirjausluonnokset ->
- *   hyväksyntä -> tuloslaskelma, tase ja vastikelaskelma.
+ *   käyttäjä -> yhtiö (tilikartta + tilikausi Kafkan kautta) -> avaussaldot (CSV) ->
+ *   käyttöomaisuus -> osakkaat -> vastikelaskutus ->
+ *   LOKAKUU:   camt.053-tiliote -> pankkipohjaiset kirjaukset (kulut ilman tositteita)
+ *   MARRASKUU: ostolaskut (PDF) -> tositteiden luku ja ostovelat -> CSV-tiliote (Nordea-muoto)
+ *              -> maksujen täsmäytys ostolaskuihin, "tosite puuttuu" -merkinnät
+ *   -> hyväksyntä -> tuloslaskelma, tase ja vastikelaskelma.
  *
  * Käyttö (palvelut käynnissä, ks. kaynnista.ps1):  npm run demo
- * Toistettava: olemassa oleva käyttäjä, yhtiö, osakkaat ja laskut käytetään uudelleen,
- * ja tiliotteen tapahtumat ohitetaan kirjanpidossa NtryRef-tunnisteen perusteella.
+ * Ostolasku-PDF:t luodaan tarvittaessa:  python scripts/samples/generate_invoices.py
+ * Toistettava: olemassa oleva käyttäjä, yhtiö, osakkaat, laskut ja ostolaskut käytetään uudelleen,
+ * ja tiliotteiden tapahtumat ohitetaan kirjanpidossa arkistointitunnuksen perusteella.
+ * Ilman ANTHROPIC_API_KEYtä ostolaskut luetaan sääntöpohjaisesti (tekstipohjaiset PDF:t), jolloin
+ * tuntematon toimittaja (Rakennuspalvelu Virtanen) jää selvitettäviin eriin; avaimella tekoäly tiliöi sen.
  *
  * Demotunnukset (vain paikallinen kehitysympäristö):
  *   sähköposti: demo@demokoti.fi   salasana: Demo12345
@@ -25,13 +31,17 @@ const COMPANY = {
   fiscalYearStart: '2026-01-01',
   fiscalYearEnd: '2026-12-31',
 };
-const VASTIKE = { unitPrice: 4.5, issueDate: '2026-10-01', dueDate: '2026-10-05', description: 'Hoitovastike 10/2026' };
+const VASTIKE_OCT = { unitPrice: 4.5, issueDate: '2026-10-01', dueDate: '2026-10-05', description: 'Hoitovastike 10/2026', label: 'Lokakuun' };
+const VASTIKE_NOV = { unitPrice: 4.5, issueDate: '2026-11-01', dueDate: '2026-11-05', description: 'Hoitovastike 11/2026', label: 'Marraskuun' };
+const SAMPLES = path.join(__dirname, 'samples');
+const BUILDING = { name: 'Asuinrakennus (Demokuja 1)', accountNumber: '1010', acquisitionDate: '1998-06-01', acquisitionCost: 1200000, priorDepreciation: 750000, method: 'MANUAL', manualAmount: 18000 };
 
 const URL = {
   user: process.env.USER_SERVICE_URL || 'http://localhost:3001/api/v1',
   accounting: process.env.ACCOUNTING_SERVICE_URL || 'http://localhost:3002/api/v1',
   invoicing: process.env.INVOICING_SERVICE_URL || 'http://localhost:3004/api/v1',
   bank: process.env.BANK_SERVICE_URL || 'http://localhost:3005/api/v1',
+  voucher: process.env.VOUCHER_SERVICE_URL || 'http://localhost:3003/api/v1',
   reporting: process.env.REPORTING_SERVICE_URL || 'http://localhost:3006/api/v1',
 };
 
@@ -126,27 +136,47 @@ async function ensureCompany() {
   throw new Error('Tilikarttaa/tilikautta ei syntynyt 30 sekunnissa. Tarkista accounting-servicen ja Kafkan ikkunat.');
 }
 
-// Avaava tase: pankkitilin saldo edelliseltä tilikaudelta (muuten pankkitili menee miinukselle)
-const OPENING_BALANCE = { voucherNumber: 'AVAUS-2026', entryDate: '2026-01-01', bank: 30000 };
+/** "tili;nimi;saldo" -> rivit (sama muoto kuin dashboardin Tilinpäätös-sivun tuonnissa). */
+const parseOpeningCsv = (text) => text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).flatMap((line) => {
+  const [accountNumber, name, balance] = line.split(';').map((s) => s.trim());
+  return /^\d{4}$/.test(accountNumber) ? [{ accountNumber, name, balance: Number(balance.replace(/\s/g, '').replace(',', '.')) }] : [];
+});
 
+// Avaava tase edellisen tilikauden tilinpäätöksestä (scripts/samples/avaustase-2026.csv)
 async function ensureOpeningBalance(companyId) {
-  const { status } = await api(URL.accounting, '/accounting/entries', {
-    method: 'POST',
-    allow: [409],
-    body: {
-      companyId,
-      entryDate: OPENING_BALANCE.entryDate,
-      voucherNumber: OPENING_BALANCE.voucherNumber,
-      description: 'Avaava tase 1.1.2026: pankkitilin saldo',
-      lines: [
-        { accountNumber: '1900', debit: OPENING_BALANCE.bank, credit: 0, description: 'Pankkitili 1 avaava saldo' },
-        { accountNumber: '2100', debit: 0, credit: OPENING_BALANCE.bank, description: 'Edellisten tilikausien ylijäämä' },
-      ],
-    },
+  const { data: years } = await api(URL.accounting, `/accounting/fiscal-years?companyId=${companyId}`);
+  const fy = years.find((y) => y.startDate.startsWith('2026-01-01'));
+  const rows = parseOpeningCsv(fs.readFileSync(path.join(SAMPLES, 'avaustase-2026.csv'), 'utf8'));
+  const { status, data } = await api(URL.accounting, `/accounting/fiscal-years/${fy.id}/opening-balances`, {
+    method: 'POST', body: { rows }, allow: [409],
   });
-  console.log(status === 201
-    ? `Kirjattiin avaava tase: pankkitili ${eur(OPENING_BALANCE.bank)}`
-    : 'Avaava tase on jo kirjattu');
+  if (status === 201) return console.log(`Kirjattiin avaustase (${rows.length} tiliä) tositteella ${data.voucherNumber}`);
+  console.log('Avaustase on jo kirjattu');
+
+  // Demon ensimmäinen versio kirjasi avaukseen vain pankkitilin. Puuttuvat tasetilit (rakennus,
+  // osakepääoma, laina) lisätään erillisellä täydennysviennillä; kirjattua vientiä ei muuteta (KPL 2:7 §).
+  const { data: ledger } = await api(URL.accounting, `/accounting/ledger?companyId=${companyId}`);
+  const opening = ledger.find((e) => e.voucherNumber === 'AVAUS-2026');
+  const missing = rows.filter((r) => !['1900', '2100'].includes(r.accountNumber));
+  if (opening && !opening.lines.some((l) => l.accountNumber === '1010')) {
+    const { status: s } = await api(URL.accounting, '/accounting/entries', {
+      method: 'POST', allow: [409],
+      body: {
+        companyId, entryDate: '2026-01-01', voucherNumber: 'AVAUS-2026-T', description: 'Avaustaseen täydennys: rakennus, osakepääoma ja laina',
+        lines: missing.map((r) => (r.accountNumber < '2000'
+          ? { accountNumber: r.accountNumber, debit: r.balance, credit: 0, description: r.name }
+          : { accountNumber: r.accountNumber, debit: 0, credit: r.balance, description: r.name })),
+      },
+    });
+    if (s === 201) console.log('Täydennettiin vanhaa demoavausta: rakennus, osakepääoma ja laina');
+  }
+}
+
+async function ensureAsset(companyId) {
+  const { data: assets } = await api(URL.accounting, `/accounting/assets?companyId=${companyId}`);
+  if (assets.some((a) => a.name === BUILDING.name)) return console.log('Rakennus on jo käyttöomaisuusrekisterissä');
+  await api(URL.accounting, '/accounting/assets', { method: 'POST', body: { companyId, ...BUILDING } });
+  console.log(`Käyttöomaisuus: ${BUILDING.name}, vuosipoisto ${eur(BUILDING.manualAmount)} (lainanlyhennysten mukaan, kirjataan tilinpäätöksessä)`);
 }
 
 async function ensureShareholders(companyId) {
@@ -176,22 +206,23 @@ async function ensureShareholders(companyId) {
   console.log(`Osakkaita yhteensä ${all.length}`);
 }
 
-async function ensureInvoices(companyId) {
-  log('4. Hoitovastikkeiden massalaskutus');
-  const isOctober = (inv) => inv.dueDate.slice(0, 10) === VASTIKE.dueDate;
+async function ensureInvoices(companyId, vastike) {
+  log(`${vastike.label} hoitovastikkeet (massalaskutus)`);
+  const isMonth = (inv) => inv.dueDate.slice(0, 10) === vastike.dueDate;
   let { data: invoices } = await api(URL.invoicing, `/invoices?companyId=${companyId}`);
-  if (invoices.some(isOctober)) {
-    console.log('Lokakuun vastikelaskut on jo luotu, ei laskuteta uudelleen');
+  if (invoices.some(isMonth)) {
+    console.log(`${vastike.label} vastikelaskut on jo luotu, ei laskuteta uudelleen`);
   } else {
+    const { label, ...body } = vastike;
     const { data } = await api(URL.invoicing, '/invoices/bulk-maintenance-fees', {
       method: 'POST',
-      body: { companyId, ...VASTIKE },
+      body: { companyId, ...body },
     });
     console.log(data.message);
     if (!(data.count > 0)) throw new Error('Laskuja ei syntynyt: tarkista osakkaiden squareMeters');
     ({ data: invoices } = await api(URL.invoicing, `/invoices?companyId=${companyId}`));
   }
-  const october = invoices.filter(isOctober);
+  const october = invoices.filter(isMonth);
   const emailToApt = new Map(SHAREHOLDERS.map((s) => [s.email, s.apt]));
   for (const inv of october) inv.apt = emailToApt.get(inv.recipientEmail);
   october.sort((a, b) => String(a.apt).localeCompare(String(b.apt)));
@@ -278,7 +309,7 @@ function buildCamt053(invoices) {
 }
 
 async function uploadStatement(companyId, invoices) {
-  log('5–6. CAMT.053-tiliote lokakuulta');
+  log('Lokakuu: camt.053-tiliote (pankkipohjainen kirjanpito)');
   const statement = buildCamt053(invoices);
   const file = path.join(__dirname, 'demo-tiliote-2026-10.xml');
   fs.writeFileSync(file, statement.xml, 'utf8');
@@ -301,8 +332,92 @@ async function uploadStatement(companyId, invoices) {
   }
 }
 
+/** Marraskuu: ostolaskut ensin (tositteet), sitten tiliote. */
+async function uploadPurchaseInvoices(companyId) {
+  log('Marraskuu: ostolaskut (PDF) -> tositteiden luku -> ostovelat');
+  const metaFile = path.join(SAMPLES, 'ostolaskut.json');
+  if (!fs.existsSync(metaFile)) {
+    throw new Error('Ostolasku-PDF:t puuttuvat. Aja ensin: python scripts/samples/generate_invoices.py');
+  }
+  const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+  const { data: existing } = await api(URL.accounting, `/accounting/purchase-invoices?companyId=${companyId}`);
+  const known = new Set(existing.map((p) => p.invoiceNumber));
+  const { data: vouchers } = await api(URL.voucher, `/vouchers?companyId=${companyId}`);
+  const uploadedFiles = new Set(vouchers.flatMap((v) => (v.files || []).map((f) => f.filename)));
+
+  let uploaded = 0;
+  for (const inv of meta) {
+    if (known.has(inv.number) || uploadedFiles.has(inv.file)) continue;
+    const form = new FormData();
+    form.append('companyId', companyId);
+    form.append('voucherType', 'PURCHASE');
+    form.append('file', new Blob([fs.readFileSync(path.join(SAMPLES, 'ostolaskut', inv.file))], { type: 'application/pdf' }), inv.file);
+    await api(URL.voucher, '/vouchers/upload', { method: 'POST', form });
+    uploaded++;
+  }
+  console.log(uploaded ? `Ladattiin ${uploaded} ostolaskua, luetaan…` : 'Ostolaskut on jo ladattu');
+
+  // Luku tapahtuu taustalla (tekoäly voi kestää); odotetaan valmistumista ja kirjauksia
+  for (let i = 0; i < 120; i++) {
+    const { data: list } = await api(URL.voucher, `/vouchers?companyId=${companyId}`);
+    if (!list.some((v) => ['PENDING', 'PROCESSING'].includes(v.ocrStatus))) break;
+    await sleep(2000);
+  }
+  await sleep(3000);
+  const { data: invoices } = await api(URL.accounting, `/accounting/purchase-invoices?companyId=${companyId}`);
+  for (const p of invoices) {
+    console.log(`  ${p.invoiceDate.slice(0, 10)} ${p.supplierName.padEnd(30)} ${String(p.invoiceNumber).padEnd(14)} ${eur(p.totalAmount).padStart(11)}  tili ${p.expenseAccount}  ${p.status}  (${p.extractor}, varmuus ${Math.round(p.confidence * 100)} %)`);
+  }
+  return meta;
+}
+
+/** Marraskuun tiliote Nordean CSV-muodossa: vastikesuoritukset, ostolaskujen maksut ja tositteettomat menot. */
+function buildNovemberCsv(vastikeInvoices, purchases) {
+  const rows = [];
+  for (const inv of vastikeInvoices) {
+    if (inv.apt === LATE_PAYER) continue;
+    rows.push({ date: inv.apt === 'A1' ? '2026-11-03' : '2026-11-05', amount: Number(inv.totalAmount), name: inv.recipientName, title: 'Viitesiirto', ref: inv.referenceNumber });
+  }
+  for (const p of purchases) {
+    if (!p.paid) continue; // ei vielä maksettu => jää ostovelaksi
+    const ref = p.paid === 'ref' ? p.ref.replace(/\s/g, '') : '';
+    // 'amount': maksun saajan nimi poikkeaa laskusta => täsmäytys pelkän summan perusteella
+    const name = p.paid === 'amount' ? 'Sähkö Kauppa Oy' : p.supplier;
+    rows.push({ date: p.payDate, amount: -p.amount, name, title: `Lasku ${p.number}`, ref });
+  }
+  rows.push({ date: '2026-11-21', amount: -86, name: 'Lukkoliike Avain Oy', title: 'Avaimet B-rappu', ref: '' }); // ei tositetta
+  rows.push({ date: '2026-11-30', amount: -12.5, name: 'Demopankki Oyj', title: 'Palvelumaksu 11/2026', ref: '' });
+  rows.sort((a, b) => a.date.localeCompare(b.date));
+
+  const fmt = (n) => n.toFixed(2).replace('.', ',');
+  const lines = ['Kirjauspäivä;Määrä;Maksaja;Maksunsaaja;Nimi;Otsikko;Viitenumero;Valuutta;Arkistointitunnus'];
+  rows.forEach((r, i) => {
+    const incoming = r.amount > 0;
+    lines.push([r.date.replace(/-/g, '/'), fmt(r.amount), incoming ? r.name : COMPANY.name, incoming ? COMPANY.name : r.name,
+      r.name, r.title, r.ref, 'EUR', `DEMO-2026-11-${String(i + 1).padStart(3, '0')}`].join(';'));
+  });
+  return { csv: lines.join('\n') + '\n', count: rows.length };
+}
+
+async function uploadNovemberStatement(companyId, vastikeInvoices, purchases) {
+  log('Marraskuu: CSV-tiliote (Nordea) -> maksujen täsmäytys ostolaskuihin');
+  const { csv, count } = buildNovemberCsv(vastikeInvoices, purchases);
+  const file = path.join(__dirname, 'demo-tiliote-2026-11.csv');
+  fs.writeFileSync(file, csv, 'utf8');
+  const form = new FormData();
+  form.append('companyId', companyId);
+  form.append('file', new Blob([csv], { type: 'text/csv' }), path.basename(file));
+  const { data } = await api(URL.bank, '/bank/upload-statement', { method: 'POST', form });
+  console.log(`Kirjoitettiin ${path.relative(process.cwd(), file)}; bank-service: ${data.transactionCount} tapahtumaa (${data.format})`);
+  for (let i = 0; i < 40; i++) {
+    await sleep(1500);
+    const { data: ledger } = await api(URL.accounting, `/accounting/ledger?companyId=${companyId}`);
+    if (ledger.filter((e) => e.voucherNumber.startsWith('BANK-DEMO-2026-11')).length >= count) break;
+  }
+}
+
 async function summarizeAndPost(companyId, invoiceIds) {
-  log('7. Automaattiset kirjaukset');
+  log('Automaattiset kirjaukset ja hyväksyntä');
   const { data: accounts } = await api(URL.accounting, `/accounting/accounts?companyId=${companyId}`);
   const names = new Map(accounts.map((a) => [a.accountNumber, a.accountName]));
   const { data: ledger } = await api(URL.accounting, `/accounting/ledger?companyId=${companyId}`);
@@ -316,15 +431,19 @@ async function summarizeAndPost(companyId, invoiceIds) {
     console.log(`  ${e.entryDate.slice(0, 10)} ${e.status.padEnd(6)} ${e.createdBy.padEnd(17)} D ${debit.accountNumber} ${String(names.get(debit.accountNumber) || '').padEnd(26)} K ${credit.accountNumber} ${String(names.get(credit.accountNumber) || '').padEnd(26)} ${eur(debit.debit).padStart(10)}  ${e.description}`);
   }
 
-  // Hyväksytään luonnokset, joita ei ohjattu selvitettäviin eriin. 1990-viennit jäävät käsiteltäviksi.
+  // Hyväksytään luonnokset, joita ei ohjattu selvitettäviin eriin. Tositteettomista hyväksytään vain
+  // pankkikulut (tiliote riittää tositteeksi); muut jäävät Käsittelemättömiin näytettäviksi.
+  const isBankFee = (e) => accountsOf(e).includes('4900');
   let posted = 0;
-  for (const e of sorted.filter((x) => x.status === 'DRAFT' && !isSuspense(x))) {
-    await api(URL.accounting, `/accounting/entries/${e.id}/post`, { method: 'POST' });
+  const left = [];
+  for (const e of sorted.filter((x) => x.status === 'DRAFT')) {
+    if (isSuspense(e) || (e.needsVoucher && !e.voucherId && !isBankFee(e))) { left.push(e); continue; }
+    await api(URL.accounting, `/accounting/entries/${e.id}/post`, { method: 'POST', body: { acknowledgeMissingVoucher: isBankFee(e) } });
     posted++;
   }
-  const open = sorted.filter((x) => x.status === 'DRAFT' && isSuspense(x));
   console.log(`\nVientejä ${sorted.length}, joista automaattisia ${sorted.filter((e) => e.createdBy.startsWith('system')).length}.`);
-  console.log(`Hyväksyttiin nyt ${posted} luonnosta. Selvitettäviin eriin (1990) jäi ${open.length}: ${open.map((e) => e.description).join('; ') || '-'}`);
+  console.log(`Hyväksyttiin nyt ${posted} luonnosta. Käsiteltäväksi jäi ${left.length}:`);
+  for (const e of left) console.log(`  - ${e.description}${e.reviewNote ? ` (${e.reviewNote})` : ''}`);
 
   const { data: invoices } = await api(URL.invoicing, `/invoices?companyId=${companyId}`);
   const mine = invoices.filter((i) => invoiceIds.has(i.id));
@@ -339,18 +458,31 @@ function printRows(rows, indent = '  ') {
   }
 }
 
+const printSections = (sections) => {
+  for (const s of sections) {
+    if (s.subtotal) { console.log(`  ${s.title.toUpperCase().padEnd(48)} ${eur(s.total).padStart(13)}`); continue; }
+    for (const r of s.rows || []) console.log(`    ${r.label.padEnd(46)} ${eur(r.amount).padStart(13)}`);
+    console.log(`  ${(s.title + ' yhteensä').padEnd(48)} ${eur(s.total).padStart(13)}`);
+  }
+};
+
 async function reports(companyId) {
-  log('8. Raportit (vain hyväksytyt viennit)');
+  log('Raportit (vain hyväksytyt viennit, avoin tilikausi)');
   const { data: income } = await api(URL.reporting, `/reports/income-statement?companyId=${companyId}`);
   const { data: balance } = await api(URL.reporting, `/reports/balance-sheet?companyId=${companyId}`);
   const { data: vastike } = await api(URL.reporting, `/reports/maintenance-calculation?companyId=${companyId}`);
 
-  console.log('\nTuloslaskelma:');
-  console.log(JSON.stringify(income, null, 2));
-  console.log('\nTase:');
-  console.log(JSON.stringify(balance, null, 2));
-  console.log('\nVastikelaskelma:');
-  console.log(JSON.stringify(vastike, null, 2));
+  console.log(`\nTuloslaskelma ${income.fiscalYear?.startDate?.slice(0, 10)}–${income.fiscalYear?.endDate?.slice(0, 10)}:`);
+  printSections(income.sections);
+  console.log('\nTase, vastaavaa:');
+  printSections(balance.sections.assets);
+  console.log(`  ${'VASTAAVAA YHTEENSÄ'.padEnd(48)} ${eur(balance.assets.total).padStart(13)}`);
+  console.log('Tase, vastattavaa:');
+  printSections(balance.sections.liabilities);
+  console.log(`  ${'VASTATTAVAA YHTEENSÄ'.padEnd(48)} ${eur(balance.equity.total).padStart(13)}   (täsmää: ${balance.balanced})`);
+  const m = vastike.maintenance_fund;
+  const c = vastike.capital_fund;
+  console.log(`\nVastikelaskelma: hoitorahoitus ${eur(m.income)} - ${eur(m.expenses)} = ${eur(m.surplus)}; pääomarahoitus ${eur(c.income)} - ${eur(c.expenses)} = ${eur(c.surplus)}`);
 
   if (balance && balance.balanced === false) {
     console.log('\nVAROITUS: tase ei täsmää (balanced=false)');
@@ -362,10 +494,16 @@ async function reports(companyId) {
   await login();
   const company = await ensureCompany();
   await ensureOpeningBalance(company.id);
+  await ensureAsset(company.id);
   await ensureShareholders(company.id);
-  const invoices = await ensureInvoices(company.id);
-  await uploadStatement(company.id, invoices);
-  await summarizeAndPost(company.id, new Set(invoices.map((i) => i.id)));
+  // Lokakuu: pankkipohjainen
+  const october = await ensureInvoices(company.id, VASTIKE_OCT);
+  await uploadStatement(company.id, october);
+  // Marraskuu: tositteet ensin, sitten pankki
+  const november = await ensureInvoices(company.id, VASTIKE_NOV);
+  const purchases = await uploadPurchaseInvoices(company.id);
+  await uploadNovemberStatement(company.id, november, purchases);
+  await summarizeAndPost(company.id, new Set([...october, ...november].map((i) => i.id)));
   await reports(company.id);
   console.log(`\nValmis. Kirjaudu dashboardiin http://localhost:5173 tunnuksella ${DEMO_USER.email} (salasana tämän tiedoston alussa).`);
 })().catch((err) => {
