@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  role          String    @default("VIEWER")
+  mfaEnabled    Boolean   @default(false)
+  mfaSecret     String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  companies     UserCompany[]
+  sessions      Session[]
+}
+
+model Company {
+  id                      String    @id @default(uuid())
+  businessId              String    @unique // Y-tunnus
+  name                    String
+  housingCooperativeId    String?   // Yhtiön tunnus
+  fiscalYearStart         DateTime
+  fiscalYearEnd           DateTime
+  chartOfAccountsTemplate String    @default("TATO")
+  settings                Json?     // Changed to Json for PostgreSQL
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  // Relations
+  users                   UserCompany[]
+  shareholders            Shareholder[]
+}
+
+model UserCompany {
+  userId    String
+  companyId String
+  user      User      @relation(fields: [userId], references: [id])
+  company   Company   @relation(fields: [companyId], references: [id])
+
+  @@id([userId, companyId])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Shareholder {
+  id          String   @id @default(uuid())
+  companyId   String
+  personType  String   // 'individual' or 'company'
+  firstName   String?
+  lastName    String?
+  companyName String?
+  personalId  String?
+  businessId  String?
+  email       String
+  phone       String?
+  address     Json?
+  userId      String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id])
+  shares      Share[]
+}
+
+model Share {
+  id                  String      @id @default(uuid())
+  shareholderId       String
+  shareNumbers        String[]    // PostgreSQL array of strings e.g. ["1-100"]
+  apartment           Json        // Contains number, address, floor, rooms, squareMeters, shareOfCommonExpenses
+  ownershipStart      DateTime
+  ownershipEnd        DateTime?
+  ownershipPercentage Decimal     @db.Decimal(5, 4) @default(1.0000)
+
+  shareholder         Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
+}

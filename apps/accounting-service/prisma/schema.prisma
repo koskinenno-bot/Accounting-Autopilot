@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum FiscalYearStatus {
+  OPEN
+  CLOSED
+}
+
+enum EntryStatus {
+  DRAFT
+  POSTED
+  LOCKED
+}
+
+model Account {
+  id            String    @id @default(uuid())
+  companyId     String
+  accountNumber String
+  accountName   String
+  accountType   AccountType
+  parentAccount String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  lines         AccountingLine[]
+
+  @@unique([companyId, accountNumber])
+}
+
+model FiscalYear {
+  id            String    @id @default(uuid())
+  companyId     String
+  startDate     DateTime
+  endDate       DateTime
+  status        FiscalYearStatus @default(OPEN)
+  description   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  entries       AccountingEntry[]
+
+  @@unique([companyId, startDate, endDate])
+}
+
+model AccountingEntry {
+  id            String    @id @default(uuid())
+  companyId     String
+  fiscalYearId  String?
+  entryDate     DateTime
+  voucherNumber String
+  voucherId     String?   // External ID for Document Service
+  description   String?
+  status        EntryStatus @default(DRAFT)
+  postedBy      String?
+  postedAt      DateTime?
+  lockedAt      DateTime?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  version       Int?      @default(1)
+
+  fiscalYear    FiscalYear? @relation(fields: [fiscalYearId], references: [id])
+  lines         AccountingLine[]
+
+  @@unique([companyId, voucherNumber])
+}
+
+model AccountingLine {
+  id            String    @id @default(uuid())
+  entryId       String
+  accountNumber String
+  companyId     String    // Required for composite relation with Account
+  debit         Decimal   @db.Decimal(15, 2) @default(0)
+  credit        Decimal   @db.Decimal(15, 2) @default(0)
+  description   String?
+  costCenter    String?
+  project       String?
+  vatCode       String?
+  vatAmount     Decimal?  @db.Decimal(15, 2)
+
+  entry         AccountingEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account       Account         @relation(fields: [companyId, accountNumber], references: [companyId, accountNumber])
+}

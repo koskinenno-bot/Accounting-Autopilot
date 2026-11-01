@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Voucher {
+  id                String    @id @default(uuid())
+  companyId         String
+  voucherType       VoucherType
+  voucherDate       DateTime
+  supplier          String?
+  customer          String?
+  amount            Decimal?  @db.Decimal(15, 2)
+  vatAmount         Decimal?  @db.Decimal(15, 2)
+  ocrStatus         OCRStatus @default(PENDING)
+  ocrData           Json?
+  mlClassification  Json?
+  suggestedAccount  String?
+  accountingEntryId String?
+  status            VoucherStatus @default(UNPROCESSED)
+  uploadedBy        String
+  uploadedAt        DateTime  @default(now())
+  processedAt       DateTime?
+
+  files             VoucherFile[]
+}
+
+model VoucherFile {
+  id        String   @id @default(uuid())
+  voucherId String
+  filename  String
+  mimeType  String
+  size      Int
+  s3Key     String
+  s3Bucket  String
+  checksum  String
+  createdAt DateTime @default(now())
+
+  voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+}
+
+enum VoucherType {
+  PURCHASE
+  SALE
+  BANK
+  OTHER
+}
+
+enum OCRStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum VoucherStatus {
+  UNPROCESSED
+  CLASSIFIED
+  POSTED
+  ARCHIVED
+}

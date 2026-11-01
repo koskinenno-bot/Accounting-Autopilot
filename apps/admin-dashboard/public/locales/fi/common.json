@@ -1,0 +1,111 @@
+{
+  "auth": {
+    "login": "Kirjaudu sisään",
+    "register": "Luo tili",
+    "logout": "Kirjaudu ulos",
+    "email": "Sähköposti",
+    "password": "Salasana",
+    "welcomeBack": "Tervetuloa takaisin",
+    "noAccount": "Eikö sinulla ole tiliä?",
+    "haveAccount": "Onko sinulla jo tili?",
+    "firstName": "Etunimi",
+    "lastName": "Sukunimi",
+    "creatingAccount": "Luo uusi tili",
+    "error": "Kirjautuminen epäonnistui. Tarkista sähköposti ja salasana."
+  },
+  "dashboard": {
+    "title": "Hallintapaneeli",
+    "automationRate": "Automaatioaste",
+    "totalCompanies": "Yhtiöitä yhteensä",
+    "unprocessed": "Käsittelemättömät",
+    "confirmed": "Vahvistetut",
+    "recentVouchers": "Viimeisimmät tositteet",
+    "systemHealth": "Järjestelmän tila",
+    "uploadVoucher": "Lataa uusi tosite"
+  },
+  "invoices": {
+    "title": "Laskutus",
+    "create": "Luo uusi lasku",
+    "number": "Laskun numero",
+    "recipient": "Vastaanottaja",
+    "dueDate": "Eräpäivä",
+    "amount": "Summa",
+    "status": "Tila",
+    "reference": "Viitenumero",
+    "downloadXml": "Lataa Finvoice XML"
+  },
+  "bank": {
+    "title": "Pankki & Tiliotteet",
+    "uploadStatement": "Tuot tiliote (XML/camt)",
+    "reconciliation": "Maksun täsmäytys",
+    "processing": "Käsitellään tiliotetta...",
+    "success": "Tiliote käsitelty! Täsmätty laskuja: ",
+    "error": "Tiliotteen käsittely epäonnistui."
+  },
+  "reports": {
+    "title": "Raportit",
+    "incomeStatement": "Tuloslaskelma",
+    "balanceSheet": "Tase",
+    "vastikelaskelma": "Vastikelaskelma",
+    "maintenanceFund": "Hoitorahoituslaskelma",
+    "capitalFund": "Pääomarahoituslaskelma",
+    "surplus": "Ylijäämä / Alijäämä",
+    "revenue": "Tuotot",
+    "income": "Tulot",
+    "expenses": "Kulut / Menot",
+    "financial": "Rahoituserät",
+    "netProfit": "Tilikauden tulos",
+    "assets": "Vastaavaa (Varat)",
+    "liabilities": "Vastattavaa (Velat & Oma pääoma)",
+    "equity": "Oma pääoma",
+    "total": "Yhteensä"
+  },
+  "documents": {
+    "title": "Dokumenttiarkisto",
+    "upload": "Lataa uusi dokumentti",
+    "name": "Dokumentin nimi",
+    "type": "Tyyppi",
+    "status": "Tila",
+    "version": "Versio",
+    "archived": "Arkistoitu",
+    "active": "Aktiivinen",
+    "archiveLock": "Arkistointilukko",
+    "retention": "Säilytysaika",
+    "deleteConfirm": "Haluatko varmasti poistaa dokumentin? Tätä ei voi perua.",
+    "archiveConfirm": "Haluatko arkistoida dokumentin? Tämä lukitsee sen poistamiselta."
+  },
+  "notifications": {
+    "title": "Viestintä",
+    "history": "Viestihistoria",
+    "recipient": "Vastaanottaja",
+    "subject": "Aihe",
+    "status": "Tila",
+    "sentAt": "Lähetetty",
+    "email": "Sähköposti",
+    "sms": "Tekstiviesti",
+    "sent": "Lähetetty",
+    "failed": "Epäonnistui",
+    "pending": "Odottaa"
+  },
+  "audit": {
+    "title": "Muutosloki",
+    "activity": "Järjestelmätapahtumat",
+    "action": "Toiminto",
+    "entity": "Kohde",
+    "user": "Käyttäjä",
+    "timestamp": "Aika",
+    "description": "Kuvaus",
+    "ip": "IP-osoite",
+    "create": "Luonti",
+    "update": "Muokkaus",
+    "delete": "Poisto",
+    "posted": "Vahvistus",
+    "login": "Kirjautuminen"
+  },
+  "common": {
+    "search": "Etsi...",
+    "cancel": "Peruuta",
+    "save": "Tallenna",
+    "loading": "Ladataan..."
+  }
+}

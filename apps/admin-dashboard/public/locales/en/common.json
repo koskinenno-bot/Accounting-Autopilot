@@ -1,0 +1,32 @@
+{
+  "auth": {
+    "login": "Log In",
+    "register": "Register",
+    "logout": "Log Out",
+    "email": "Email",
+    "password": "Password",
+    "welcomeBack": "Welcome Back",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "creatingAccount": "Create New Account",
+    "error": "Login failed. Please check your email and password."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "automationRate": "Automation Rate",
+    "totalCompanies": "Total Companies",
+    "unprocessed": "Unprocessed",
+    "confirmed": "Confirmed",
+    "recentVouchers": "Recent Vouchers",
+    "systemHealth": "System Health",
+    "uploadVoucher": "Upload New Voucher"
+  },
+  "common": {
+    "search": "Search...",
+    "cancel": "Cancel",
+    "save": "Save",
+    "loading": "Loading..."
+  }
+}

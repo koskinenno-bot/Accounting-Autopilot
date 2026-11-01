@@ -1,0 +1,37 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Notification {
+  id          String             @id @default(uuid())
+  companyId   String
+  recipient   String             // Email or Phone number
+  type        NotificationType   @default(EMAIL)
+  subject     String?
+  content     String             // Rendered HTML or plain text
+  status      NotificationStatus @default(PENDING)
+  errorMessage String?
+  
+  createdAt   DateTime           @default(now())
+  sentAt      DateTime?
+  
+  @@index([companyId])
+  @@index([status])
+}

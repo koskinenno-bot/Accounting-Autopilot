@@ -1,0 +1,77 @@
+_format_version: "3.0"
+
+# Palvelut ajetaan kehityksessä isäntäkoneella (npm run dev), joten Kong (Dockerissa)
+# ohjaa ne host.docker.internal-osoitteeseen. Polut vastaavat palveluiden omia
+# reittejä, siksi strip_path: false (aiemmin esim. /api/v1/entries ei vastannut
+# palvelun polkua /api/v1/accounting/entries, ja kohdekontteja ei ollut olemassa).
+
+services:
+  - name: user-service
+    url: http://host.docker.internal:3001
+    routes:
+      - name: user-routes
+        strip_path: false
+        paths: [/api/v1/auth, /api/v1/companies, /api/v1/shareholders]
+
+  - name: accounting-service
+    url: http://host.docker.internal:3002
+    routes:
+      - name: accounting-routes
+        strip_path: false
+        paths: [/api/v1/accounting]
+
+  - name: voucher-service
+    url: http://host.docker.internal:3003
+    routes:
+      - name: voucher-routes
+        strip_path: false
+        paths: [/api/v1/vouchers]
+
+  - name: invoicing-service
+    url: http://host.docker.internal:3004
+    routes:
+      - name: invoicing-routes
+        strip_path: false
+        paths: [/api/v1/invoices]
+
+  - name: bank-service
+    url: http://host.docker.internal:3005
+    routes:
+      - name: bank-routes
+        strip_path: false
+        paths: [/api/v1/bank]
+
+  - name: reporting-service
+    url: http://host.docker.internal:3006
+    routes:
+      - name: reporting-routes
+        strip_path: false
+        paths: [/api/v1/reports]
+
+  - name: document-service
+    url: http://host.docker.internal:3007
+    routes:
+      - name: document-routes
+        strip_path: false
+        paths: [/api/v1/documents]
+
+  - name: notification-service
+    url: http://host.docker.internal:3008
+    routes:
+      - name: notification-routes
+        strip_path: false
+        paths: [/api/v1/notify]
+
+  - name: audit-service
+    url: http://host.docker.internal:3009
+    routes:
+      - name: audit-routes
+        strip_path: false
+        paths: [/api/v1/audit]
+
+  - name: ml-service
+    url: http://host.docker.internal:8001
+    routes:
+      - name: ml-routes
+        strip_path: false
+        paths: [/api/v1/ml]

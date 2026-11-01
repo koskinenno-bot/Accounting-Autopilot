@@ -1,0 +1,49 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum DocumentType {
+  PROTOCOL
+  REPORT
+  CONTRACT
+  INVOICE
+  OTHER
+}
+
+model Document {
+  id            String         @id @default(uuid())
+  companyId     String
+  name          String
+  type          DocumentType   @default(OTHER)
+  isArchived    Boolean        @default(false)
+  archivedAt    DateTime?
+  retentionUntil DateTime?      // Legal archiving requirement (e.g., 10 years)
+  
+  versions      DocumentVersion[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([companyId])
+  @@index([type])
+}
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String
+  version     Int      @default(1)
+  filename    String
+  mimeType    String
+  size        Int
+  storagePath String   // Path in local storage or S3 key
+  checksum    String   // SHA-256 for integrity
+  
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}

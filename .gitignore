@@ -1,0 +1,31 @@
+# Riippuvuudet ja käännökset
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Salaisuudet (käytä .env.example-tiedostoja mallina)
+.env
+.env.*
+!.env.example
+* .env
+
+# Paikalliset tietokannat ja ladatut tiedostot
+*.db
+*.db-journal
+uploads/
+
+# Generoidut Prisma-clientit (luo: npm run prisma:generate)
+apps/*/prisma/client/
+*.dll.node
+*.tmp*
+
+# Työkalut ja käyttöjärjestelmä
+.DS_Store
+Thumbs.db
+*.log
+
+# Claude-varmuuskopiot
+_varmuuskopio_claude_*/

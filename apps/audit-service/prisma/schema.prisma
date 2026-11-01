@@ -1,0 +1,37 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./client"
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  companyId     String?
+  userId        String?
+  action        AuditAction
+  entityType    String      // e.g., 'INVOICE', 'JOURNAL_ENTRY', 'DOCUMENT'
+  entityId      String?
+  
+  description   String?     // Human-readable description
+  changes       Json?       // Changed to Json for PostgreSQL
+  
+  ipAddress     String?
+  userAgent     String?
+  
+  createdAt     DateTime    @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+}

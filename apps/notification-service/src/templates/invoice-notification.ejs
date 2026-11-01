@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; color: #334155; line-height: 1.6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .logo { font-size: 24px; font-weight: bold; color: #3b82f6; }
+        .content { margin-bottom: 30px; }
+        .details { background-color: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .footer { font-size: 12px; color: #64748b; text-align: center; }
+        .button { display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">AI Accountat v3</div>
+            <h2>Uusi vastikelasku</h2>
+        </div>
+        <div class="content">
+            <p>Hei <%= recipientName %>,</p>
+            <p>Taloyhtiöltänne on saapunut uusi vastikelasku. Voit tarkastella laskun tietoja alta tai kirjautumalla osakasportaaliin.</p>
+            
+            <div class="details">
+                <p><strong>Laskun numero:</strong> <%= invoiceNumber %></p>
+                <p><strong>Summa:</strong> <%= amount %> €</p>
+                <p><strong>Eräpäivä:</strong> <%= dueDate %></p>
+                <p><strong>Viitenumero:</strong> <%= referenceNumber %></p>
+            </div>
+            
+            <p style="text-align: center;">
+                <a href="#" class="button">Kirjaudu portaaliin</a>
+            </p>
+        </div>
+        <div class="footer">
+            Tämä on automaattinen viesti AI Accountat v3 -järjestelmästä. Älä vastaa tähän sähköpostiin.
+        </div>
+    </div>
+</body>
+</html>
