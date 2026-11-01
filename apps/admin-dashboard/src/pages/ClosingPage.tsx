@@ -58,6 +58,15 @@ const ClosingPage = () => {
   const warnings = items.filter((i) => !i.blocking && !i.ok);
   const openingDone = items.find((i) => i.key === 'opening')?.ok;
 
+  // Ilmoitus näytetään siinä kortissa, jossa toiminto tehtiin (sivun yläreuna jää usein näkymättömiin)
+  const [section, setSection] = useState<string>('close');
+  const act = (where: string, action: () => Promise<string>) => { setSection(where); setMessage(null); run.mutate(action); };
+  const notice = (where: string) => (message && section === where ? (
+    <div className={`text-sm rounded-lg p-3 border ${message.ok ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-300 bg-rose-500/10 border-rose-500/20'}`}>
+      {message.text}
+    </div>
+  ) : null);
+
   const run = useMutation({
     mutationFn: async (action: () => Promise<string>) => action(),
     onSuccess: (text) => {
@@ -69,6 +78,9 @@ const ClosingPage = () => {
   });
 
   const openingRows = parseOpeningCsv(openingText);
+  const pendingDep: any[] = (depreciation.data || []).filter((d: any) => !d.postedEntryId);
+  const depAmount = (d: any) => Number(String(depAmounts[d.asset.id] ?? d.amount).replace(/\s/g, '').replace(',', '.')) || 0;
+  const depTotal = Math.round(pendingDep.reduce((s, d) => s + depAmount(d), 0) * 100) / 100;
 
   return (
     <div className="space-y-6">
@@ -80,13 +92,8 @@ const ClosingPage = () => {
         <FiscalYearSelect companyId={companyId} value={fyId} onChange={setFyId} />
       </div>
 
-      {message && (
-        <div className={`text-sm rounded-lg p-3 border ${message.ok ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-300 bg-rose-500/10 border-rose-500/20'}`}>
-          {message.text}
-        </div>
-      )}
-
       <Card title={`Tilinpäätöksen tarkistuslista${fy ? ` – ${fiscalYearLabel(fy)}` : ''}`}>
+        {notice('close')}
         <ul className="space-y-2">
           {items.map((i) => (
             <li key={i.key} className="flex items-start gap-3 text-sm">
@@ -113,7 +120,7 @@ const ClosingPage = () => {
               disabled={!fy || blockingFailed || (warnings.length > 0 && !ack) || run.isPending}
               onClick={() => {
                 if (!window.confirm('Suljetaanko tilikausi? Viennit lukitaan, tulos siirretään omaan pääomaan ja seuraava tilikausi avataan. Toimintoa ei voi perua.')) return;
-                run.mutate(async () => {
+                act('close', async () => {
                   const r = await closeFiscalYear(fyId!, ack);
                   setFyId(r.nextFiscalYear?.id);
                   return `Tilikausi suljettu. Tulos ${eur(r.result)} siirretty tilille 2200, ${r.lockedEntries} vientiä lukittu, seuraava tilikausi avattu${r.openingCreated ? ' avaussaldoineen' : ''}${r.accrualReversals ? `, ${r.accrualReversals} jaksotusta purettu` : ''}.`;
@@ -128,6 +135,7 @@ const ClosingPage = () => {
 
       {!closed && (
         <Card title="Avaussaldot">
+          {notice('opening')}
           {openingDone ? (
             <p className="text-sm text-slate-300">Avaussaldot on kirjattu ({items.find((i) => i.key === 'opening')?.detail}). Korjaukset tehdään korjausviennillä.</p>
           ) : (
@@ -147,7 +155,7 @@ const ClosingPage = () => {
                 </div>
               )}
               <button type="button" className={button} disabled={!openingRows.length || run.isPending}
-                onClick={() => run.mutate(async () => { await setOpeningBalances(fyId!, openingRows); setOpeningText(''); return 'Avaussaldot kirjattu.'; })}>
+                onClick={() => act('opening', async () => { await setOpeningBalances(fyId!, openingRows); setOpeningText(''); return 'Avaussaldot kirjattu.'; })}>
                 Kirjaa avaussaldot
               </button>
             </>
@@ -166,19 +174,34 @@ const ClosingPage = () => {
                 {' · '}kirjanpitoarvo kauden alussa {eur(d.bookValueStart)}
               </div>
             </div>
-            {d.postedEntryId ? <span className="text-emerald-300">Kirjattu</span> : (
-              <input className={`${input} w-36 text-right`} disabled={closed} value={depAmounts[d.asset.id] ?? String(d.amount)}
-                onChange={(e) => setDepAmounts({ ...depAmounts, [d.asset.id]: e.target.value })} />
+            {d.postedEntryId ? <span className="text-emerald-300">Poisto kirjattu</span> : (
+              <label className="flex items-center gap-2 text-slate-400">
+                Poisto €
+                <input className={`${input} w-36 text-right text-slate-100`} disabled={closed} value={depAmounts[d.asset.id] ?? String(d.amount)}
+                  onChange={(e) => setDepAmounts({ ...depAmounts, [d.asset.id]: e.target.value })} />
+              </label>
             )}
           </div>
         ))}
-        {!closed && (depreciation.data || []).some((d: any) => !d.postedEntryId) && (
-          <button type="button" className={button} disabled={run.isPending} onClick={() => run.mutate(async () => {
-            const items = (depreciation.data as any[]).filter((d) => !d.postedEntryId)
-              .map((d) => ({ assetId: d.asset.id, amount: Number(String(depAmounts[d.asset.id] ?? d.amount).replace(',', '.')) }));
-            const r = await postDepreciation(fyId!, items);
-            return `Kirjattiin ${r.created} poistovientiä (D 6900 Poistot / K omaisuustili) tilikauden viimeiselle päivälle.`;
-          })}>Kirjaa poistot</button>
+        {notice('dep')}
+        {!closed && pendingDep.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="premium-button premium-gradient text-white disabled:opacity-40"
+              disabled={run.isPending || !(depTotal > 0)}
+              onClick={() => {
+                if (!window.confirm(`Kirjataanko poistot ${eur(depTotal)} päivälle ${fy ? new Date(fy.endDate).toLocaleDateString('fi-FI', { timeZone: 'UTC' }) : ''}?\n\nVienti: D 6900 Poistot / K omaisuustili. Kirjattua poistoa ei voi poistaa; se oikaistaan tarvittaessa korjausviennillä.`)) return;
+                act('dep', async () => {
+                  const r = await postDepreciation(fyId!, pendingDep.map((d) => ({ assetId: d.asset.id, amount: depAmount(d) })));
+                  return `Kirjattiin ${r.created} poistovientiä yhteensä ${eur(depTotal)} (D 6900 Poistot / K omaisuustili) tilikauden viimeiselle päivälle.`;
+                });
+              }}
+            >
+              {run.isPending && section === 'dep' ? 'Kirjataan…' : `Kirjaa poistot (${eur(depTotal)})`}
+            </button>
+            <span className="text-xs text-slate-400">Summaa voi muuttaa ennen kirjausta. Poisto kirjataan tilikauden viimeiselle päivälle.</span>
+          </div>
         )}
         {!closed && (
           <details className="text-sm">
@@ -198,7 +221,7 @@ const ClosingPage = () => {
               {assetForm.method === 'STRAIGHT_LINE' && <input className={input} placeholder="Pitoaika vuosina" value={assetForm.usefulLifeYears} onChange={(e) => setAssetForm({ ...assetForm, usefulLifeYears: e.target.value })} />}
               {assetForm.method === 'MANUAL' && <input className={input} placeholder="Vuosipoisto €" value={assetForm.manualAmount} onChange={(e) => setAssetForm({ ...assetForm, manualAmount: e.target.value })} />}
             </div>
-            <button type="button" className={`${button} mt-3`} disabled={run.isPending} onClick={() => run.mutate(async () => {
+            <button type="button" className={`${button} mt-3`} disabled={run.isPending} onClick={() => act('dep', async () => {
               const num = (s: string) => (s === '' ? undefined : Number(s.replace(/\s/g, '').replace(',', '.')));
               await createAsset({ ...assetForm, companyId, acquisitionCost: num(assetForm.acquisitionCost), priorDepreciation: num(assetForm.priorDepreciation),
                 rate: num(assetForm.rate), usefulLifeYears: num(assetForm.usefulLifeYears), manualAmount: num(assetForm.manualAmount) });
@@ -209,6 +232,7 @@ const ClosingPage = () => {
       </Card>
 
       <Card title="Jaksotukset">
+        {notice('accrual')}
         <p className="text-sm text-slate-400">Kulut ja tuotot kohdistetaan sille tilikaudelle, jota ne koskevat. Ehdotukset perustuvat ostolaskujen suoritusjaksoihin; jaksotukset puretaan automaattisesti seuraavan kauden alkuun tilikautta suljettaessa.</p>
         {(accruals.data?.suggestions || []).map((s: any) => (
           <div key={s.voucherNumber} className="flex flex-wrap items-center justify-between gap-3 text-sm border-b border-white/5 pb-2">
@@ -216,7 +240,7 @@ const ClosingPage = () => {
             <span className="flex items-center gap-3">
               <span className="font-semibold">{eur(s.amount)}</span>
               {!closed && <button type="button" className={button} disabled={run.isPending}
-                onClick={() => run.mutate(async () => { await createAccrual(fyId!, s); return `Jaksotus kirjattu: ${s.description}`; })}>Kirjaa</button>}
+                onClick={() => act('accrual', async () => { await createAccrual(fyId!, s); return `Jaksotus kirjattu: ${s.description}`; })}>Kirjaa</button>}
             </span>
           </div>
         ))}
@@ -242,7 +266,7 @@ const ClosingPage = () => {
               <input className={input} placeholder="Summa €" value={accrualForm.amount} onChange={(e) => setAccrualForm({ ...accrualForm, amount: e.target.value })} />
               <input className={input} placeholder="Selite" value={accrualForm.description} onChange={(e) => setAccrualForm({ ...accrualForm, description: e.target.value })} />
             </div>
-            <button type="button" className={`${button} mt-3`} disabled={run.isPending} onClick={() => run.mutate(async () => {
+            <button type="button" className={`${button} mt-3`} disabled={run.isPending} onClick={() => act('accrual', async () => {
               await createAccrual(fyId!, { ...accrualForm, amount: Number(accrualForm.amount.replace(',', '.')) });
               setAccrualForm({ kind: 'accrued_expense', accountNumber: '', amount: '', description: '' });
               return 'Jaksotus kirjattu.';

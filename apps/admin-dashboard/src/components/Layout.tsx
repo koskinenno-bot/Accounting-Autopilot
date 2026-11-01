@@ -14,7 +14,7 @@ const SidebarItem = ({ icon: Icon, label, path, active }: { icon: any, label: st
         : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
     }`}>
       <Icon className={`w-5 h-5 ${active ? 'text-primary-400' : 'group-hover:text-primary-400'}`} />
-      <span className="font-medium">{label}</span>
+      <span className="font-medium leading-tight">{label}</span>
       {active && (
         <motion.div 
           layoutId="sidebar-active"
@@ -57,7 +57,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
       {/* Sidebar */}
-      <aside className="w-72 border-r border-white/5 p-6 flex flex-col glass-card rounded-none border-y-0 border-l-0">
+      {/* shrink-0: leveä sisältö (esim. taulukot) ei saa kaventaa valikkoa, muuten tekstit katkeavat */}
+      <aside className="w-72 shrink-0 border-r border-white/5 p-6 flex flex-col glass-card rounded-none border-y-0 border-l-0">
         <div className="flex items-center space-x-3 mb-10 px-2">
           <div className="w-10 h-10 premium-gradient rounded-xl flex items-center justify-center">
             <span className="font-bold text-xl">A</span>
@@ -84,7 +85,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-20 border-b border-white/5 px-8 flex items-center justify-between">
           <div className="flex items-center space-x-4">
