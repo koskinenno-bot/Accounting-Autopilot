@@ -35,7 +35,16 @@
     "sameAmount": "same amount",
     "suspenseBlock": "The entry still uses account 1990 Suspense. Choose the correct account or match the payment to an invoice before approving.",
     "matched": "Payment matched to invoice {{invoice}}, invoice marked paid.",
-    "approved": "Entry {{voucher}} approved."
+    "approved": "Entry {{voucher}} approved.",
+    "badgeSure": "Confident",
+    "badgeNoVoucher": "Voucher missing",
+    "showVoucher": "Show voucher",
+    "noVoucherConfirm": "This entry has no voucher (invoice or receipt). Approve it based on the bank statement? Suitable e.g. for bank fees. Otherwise upload the voucher first and it will be linked to this entry automatically.",
+    "approveAllSure": "Approve all confident ({{count}})",
+    "bulkApproved": "Approved {{count}} entries.",
+    "bulkSkipped": "{{count}} skipped (review them manually).",
+    "processing": "Reading {{count}} vouchers…",
+    "readFailed": "Reading the voucher failed"
   },
   "ledger": {
     "title": "General ledger",

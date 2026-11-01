@@ -1,5 +1,5 @@
 import { Kafka, Producer } from 'kafkajs';
-import { VoucherUploadedEvent } from '@ai-accountant/types';
+import { VoucherClassifiedEvent, VoucherUploadedEvent } from '@ai-accountant/types';
 
 const brokers = process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['localhost:9092'];
 
@@ -17,6 +17,15 @@ export const connectProducer = async () => {
   } catch (error) {
     console.error('Failed to connect Kafka producer:', error);
   }
+};
+
+/** Luetun tositteen tiedot accounting-servicelle (kirjausluonnos). Virhe heitetään kutsujalle. */
+export const publishVoucherClassified = async (event: VoucherClassifiedEvent) => {
+  await producer.send({
+    topic: 'voucher.classified',
+    messages: [{ key: event.data.voucherId, value: JSON.stringify(event) }],
+  });
+  console.log(`Published voucher.classified for voucher: ${event.data.voucherId}`);
 };
 
 export const publishVoucherUploaded = async (event: VoucherUploadedEvent) => {

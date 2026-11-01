@@ -6,9 +6,10 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { connectProducer, publishVoucherUploaded } from './utils/kafka';
-import { uploadToS3, bucketName } from './utils/s3';
-import { requireAuth, requireCompanyAccess } from './middleware/requireAuth';
+import { connectProducer } from './utils/kafka';
+import { uploadToS3, bucketName, downloadFromS3 } from './utils/s3';
+import { assertCompanyAccess, requireAuth, requireCompanyAccess } from './middleware/requireAuth';
+import { processVoucher } from './processing';
 import { createHash } from 'crypto';
 
 const app = express();
@@ -73,28 +74,54 @@ app.post('/api/v1/vouchers/upload', requireAuth, upload.single('file'), requireC
       include: { files: true }
     });
 
-    // 3. Trigger Autmation Pipeline via Kafka
-    await publishVoucherUploaded({
-      id: uuidv4(),
-      timestamp: new Date().toISOString(),
-      data: {
-        voucherId: voucher.id,
-        companyId: companyId,
-        s3Key: s3Key,
-        s3Bucket: bucketName,
-        filename: file.originalname,
-        voucherType: voucher.voucherType
-      }
-    });
-
-    res.json({ 
-      message: 'Voucher uploaded and automation pipeline triggered', 
+    // 3. Luku taustalla (tekoäly voi kestää kymmeniä sekunteja); tila näkyy GET /vouchers/:id
+    res.json({
+      message: 'Tosite ladattu, luku käynnissä',
       voucherId: voucher.id,
-      s3Key: s3Key 
+      s3Key: s3Key
     });
+    processVoucher(prisma, voucher.id, file).catch((err) => console.error(`Tositteen ${voucher.id} käsittely kaatui:`, err));
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+// Yhtiön tositteet (Käsittelemättömät-näkymä näyttää luvun tilan ja virheet)
+app.get('/api/v1/vouchers', requireAuth, requireCompanyAccess({ required: true }), async (req, res) => {
+  const vouchers = await prisma.voucher.findMany({
+    where: { companyId: req.query.companyId as string },
+    include: { files: { select: { id: true, filename: true, mimeType: true, size: true } } },
+    orderBy: { uploadedAt: 'desc' },
+    take: Math.min(Number(req.query.limit) || 200, 1000),
+  });
+  res.json(vouchers);
+});
+
+app.get('/api/v1/vouchers/:id', requireAuth, async (req, res) => {
+  const voucher = await prisma.voucher.findUnique({
+    where: { id: req.params.id },
+    include: { files: { select: { id: true, filename: true, mimeType: true, size: true } } },
+  });
+  if (!voucher) return res.status(404).json({ error: 'Tositetta ei löydy' });
+  if (!(await assertCompanyAccess(req, res, voucher.companyId))) return;
+  res.json(voucher);
+});
+
+// Tositteen tiedosto esikatseluun (dashboard hakee tunnisteella ja avaa blobina)
+app.get('/api/v1/vouchers/:id/file', requireAuth, async (req, res) => {
+  try {
+    const voucher = await prisma.voucher.findUnique({ where: { id: req.params.id }, include: { files: true } });
+    if (!voucher || voucher.files.length === 0) return res.status(404).json({ error: 'Tositetta ei löydy' });
+    if (!(await assertCompanyAccess(req, res, voucher.companyId))) return;
+    const file = voucher.files[0];
+    const data = await downloadFromS3(file.s3Bucket, file.s3Key);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.filename)}"`);
+    res.send(data);
+  } catch (error) {
+    console.error('Voucher file error:', error);
+    res.status(500).json({ error: 'Tiedoston haku epäonnistui' });
   }
 });
 

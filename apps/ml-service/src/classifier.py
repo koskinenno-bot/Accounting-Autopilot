@@ -49,6 +49,15 @@ def keyword_matches(keyword: str, text: str) -> bool:
     return keyword in text
 
 
+def is_expense_account(code: str) -> bool:
+    """Hoito- ja rahoituskulut 4000-8999 (TATO-tilikartan numeroalueet)."""
+    return code.isdigit() and 4000 <= int(code) <= 8999
+
+
+def is_revenue_account(code: str) -> bool:
+    return code.isdigit() and 3000 <= int(code) <= 3999
+
+
 def match_keywords(text: str) -> List[Dict]:
     """Palauttaa osuneet tiedot, pisin (tarkin) avainsana ensin."""
     text = text.lower()

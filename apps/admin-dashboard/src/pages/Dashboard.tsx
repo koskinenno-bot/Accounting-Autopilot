@@ -137,7 +137,8 @@ const Dashboard = () => {
     mutationFn: (file: File) => uploadVoucher(file, selectedCompany.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
-      alert('Tosite ladattu onnistuneesti!');
+      queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      alert('Tosite ladattu. Tiedot luetaan taustalla, ja kirjausluonnos ilmestyy Käsittelemättömiin hetken kuluttua.');
     },
     onError: () => alert('Lataus epäonnistui.'),
   });

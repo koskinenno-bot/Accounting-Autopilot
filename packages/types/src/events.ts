@@ -24,6 +24,28 @@ export interface VoucherUploadedEvent {
   };
 }
 
+/** ml-servicen /ml/extract-voucher -vastaus (Claude tai sääntöpohjainen varajäsennin). */
+export interface VoucherExtraction {
+  documentType: 'purchase_invoice' | 'receipt' | 'credit_note' | 'other';
+  supplierName: string | null;
+  supplierBusinessId: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null; // YYYY-MM-DD
+  dueDate: string | null;
+  servicePeriodStart: string | null;
+  servicePeriodEnd: string | null;
+  totalAmount: number | null;
+  vatAmount: number | null;
+  currency: string | null;
+  referenceNumber: string | null;
+  iban: string | null;
+  lines: { description: string; amount: number | null }[];
+  suggestedAccount: string;
+  accountReason: string;
+  confidence: number;
+  extractor: 'claude' | 'heuristic';
+}
+
 export interface VoucherClassifiedEvent {
   id: string;
   timestamp: string;
@@ -35,6 +57,10 @@ export interface VoucherClassifiedEvent {
     amount?: number;
     date?: string;
     supplier?: string;
+    /** Tositteen luetut tiedot; puuttuu, jos luku epäonnistui. */
+    extraction?: VoucherExtraction;
+    /** Lukuvirhe käyttäjälle näytettäväksi. */
+    error?: string;
   };
 }
 

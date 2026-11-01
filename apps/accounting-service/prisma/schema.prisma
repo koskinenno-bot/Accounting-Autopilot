@@ -77,11 +77,66 @@ model AccountingEntry {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   version       Int?      @default(1)
+  // Automaation käsittelytiedot (Käsittelemättömät-näkymä)
+  counterparty   String?            // toimittaja / maksaja (oppiminen: toimittaja -> tili)
+  autoApprovable Boolean  @default(false) // tekoäly varma => "Hyväksy kaikki varmat"
+  needsVoucher   Boolean  @default(false) // pankkimeno ilman tositetta (KPL 2:5 §)
+  reviewNote     String?
 
   fiscalYear    FiscalYear? @relation(fields: [fiscalYearId], references: [id])
   lines         AccountingLine[]
 
   @@unique([companyId, voucherNumber])
+}
+
+enum PurchaseInvoiceStatus {
+  PROPOSED // kirjausluonnos tehty
+  BOOKED   // kuluvienti hyväksytty (ostovelka)
+  PAID     // maksu täsmätty pankista
+}
+
+/// Ostolasku tositteesta (suoriteperuste: kulu ja ostovelka laskun päivälle).
+model PurchaseInvoice {
+  id                 String   @id @default(uuid())
+  companyId          String
+  voucherId          String?
+  supplierName       String
+  supplierBusinessId String?
+  supplierKey        String   // Y-tunnus tai normalisoitu nimi: tuplien esto ja oppiminen
+  invoiceNumber      String?
+  invoiceDate        DateTime
+  dueDate            DateTime?
+  servicePeriodStart DateTime?
+  servicePeriodEnd   DateTime?
+  totalAmount        Decimal  @db.Decimal(15, 2)
+  vatAmount          Decimal? @db.Decimal(15, 2)
+  referenceNumber    String?
+  iban               String?
+  expenseAccount     String
+  confidence         Float    @default(0)
+  extractor          String?
+  status             PurchaseInvoiceStatus @default(PROPOSED)
+  accountingEntryId  String?
+  paymentEntryId     String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([companyId, supplierKey, invoiceNumber])
+  @@index([companyId, status])
+}
+
+/// Käyttäjän korjauksista opittu tiliöinti: toimittaja -> tili (yhtiökohtainen).
+model SupplierAccountRule {
+  id            String   @id @default(uuid())
+  companyId     String
+  supplierKey   String
+  supplierName  String
+  accountNumber String
+  timesUsed     Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([companyId, supplierKey])
 }
 
 model AccountingLine {

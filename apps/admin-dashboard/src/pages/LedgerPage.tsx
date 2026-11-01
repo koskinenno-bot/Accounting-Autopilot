@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { getCompanies } from '../api/companies';
 import { getAccounts, getLedgerByStatus } from '../api/accounting';
+import { openVoucherFile } from '../api/vouchers';
+import { FileText } from 'lucide-react';
 
 const eur = (n: number | string) =>
   Number(n).toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -58,6 +60,15 @@ const LedgerPage = () => {
                     <td colSpan={3} className="px-6 pt-3 pb-1 font-medium">
                       {entry.description}
                       {entry.status === 'LOCKED' && <span className="ml-2 text-xs text-slate-500">(lukittu)</span>}
+                      {entry.voucherId && (
+                        <button
+                          type="button"
+                          onClick={() => openVoucherFile(entry.voucherId).catch(() => window.alert('Tositteen avaaminen epäonnistui'))}
+                          className="ml-3 text-xs text-primary-400 hover:text-primary-300 inline-flex items-center gap-1"
+                        >
+                          <FileText className="w-3.5 h-3.5" />tosite
+                        </button>
+                      )}
                     </td>
                   </tr>,
                   ...entry.lines.map((l: any) => (

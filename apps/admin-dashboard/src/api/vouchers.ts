@@ -29,3 +29,24 @@ export const uploadVoucher = async (file: File, companyId: string) => {
   });
   return data;
 };
+
+export const listVouchers = async (companyId: string) => {
+  const { data } = await vouchersApi.get('/vouchers', { params: { companyId } });
+  return data;
+};
+
+/** Avaa tositteen uuteen välilehteen (tiedosto haetaan tunnisteella, joten suora linkki ei toimi). */
+export const openVoucherFile = async (voucherId: string) => {
+  // Ikkuna avataan heti klikkauksen yhteydessä, muuten selain estää ponnahdusikkunan
+  const win = window.open('', '_blank');
+  try {
+    const { data } = await vouchersApi.get(`/vouchers/${voucherId}/file`, { responseType: 'blob' });
+    const url = URL.createObjectURL(data);
+    if (win) win.location.href = url;
+    else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    win?.close();
+    throw err;
+  }
+};

@@ -44,8 +44,15 @@ export const updateEntryLines = async (id: string, lines: EntryLineInput[]) => {
   return data;
 };
 
-export const postEntry = async (id: string) => {
-  const { data } = await accountingApi.post(`/accounting/entries/${id}/post`);
+/** acknowledgeMissingVoucher: tiliote riittää tositteeksi (esim. pankkikulut). */
+export const postEntry = async (id: string, acknowledgeMissingVoucher = false) => {
+  const { data } = await accountingApi.post(`/accounting/entries/${id}/post`, { acknowledgeMissingVoucher });
+  return data;
+};
+
+/** "Hyväksy kaikki varmat": automaation varmoiksi merkitsemät luonnokset. */
+export const postAutoApprovable = async (companyId: string): Promise<{ posted: number; skipped: { voucherNumber: string; reason: string }[] }> => {
+  const { data } = await accountingApi.post('/accounting/entries/post-auto', { companyId });
   return data;
 };
 

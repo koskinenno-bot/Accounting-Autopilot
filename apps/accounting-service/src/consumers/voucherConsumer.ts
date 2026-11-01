@@ -3,74 +3,143 @@ import { prisma } from '../db';
 import { ACCOUNTS } from '../accounts';
 import { accountExists } from '../services/chartOfAccountsService';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
+import { getLearnedAccount } from '../services/learningService';
+import { assessAutoApproval, similarNames, supplierKey } from '../purchaseMatching';
 
+const toDate = (s: string | null | undefined): Date | null => {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * Luettu tosite -> ostolasku ja kirjausluonnos suoriteperusteella:
+ *   D kulutili / K 2800 Ostovelat laskun päivälle (tosite linkitettynä).
+ * Jos sama meno on jo kirjattu pankista ilman tositetta, tosite liitetään siihen
+ * vientiin eikä kulua kirjata kahdesti.
+ */
 export const handleVoucherClassified = async (event: VoucherClassifiedEvent) => {
-  const data = event.data as VoucherClassifiedEvent['data'] & { suggested_account?: string };
-  const { voucherId, companyId, amount, supplier } = data;
-  // Hyväksytään myös vanha snake_case-kenttä, jota ml-worker lähetti aiemmin.
-  const suggested = data.suggestedAccount || data.suggested_account;
+  const { voucherId, companyId, extraction, error } = event.data;
 
-  console.log(`Creating draft accounting entry for voucher ${voucherId}`);
-
-  if (!amount || !(Number(amount) > 0)) {
-    // Ilman summaa (OCR ei vielä käytössä) ei luoda nollavientiä; tosite odottaa käsin kirjausta.
-    console.log(`Tositteella ${voucherId} ei ole summaa, kirjausluonnosta ei luoda.`);
+  if (!extraction) {
+    // Vanha ml-worker (pelkkä tiedostonimi) tai lukuvirhe: tosite näkyy tositelistassa käsin käsiteltävänä.
+    console.log(`Tositteelta ${voucherId} ei saatu tietoja${error ? `: ${error}` : ''}; kirjausta ei luoda.`);
+    return;
+  }
+  const amount = Number(extraction.totalAmount);
+  const invoiceDate = toDate(extraction.invoiceDate);
+  if (!(amount > 0) || !invoiceDate || !extraction.supplierName) {
+    console.log(`Tositteelta ${voucherId} puuttuu summa, päivä tai toimittaja; odottaa käsin kirjausta.`);
     return;
   }
 
   try {
-    // ML-palvelun ehdottamaa tiliä ei välttämättä ole yhtiön tilikartassa
-    // (esim. 5000/9999). Silloin kirjataan selvitettäviin eriin eikä
-    // koko kirjaus kaadu viite-eheysvirheeseen.
-    const expenseAccount =
-      suggested && (await accountExists(companyId, suggested)) ? suggested : ACCOUNTS.SUSPENSE;
-    if (expenseAccount !== suggested) {
-      console.warn(`Ehdotettua tiliä ${suggested} ei löydy yhtiön ${companyId} tilikartasta, käytetään ${ACCOUNTS.SUSPENSE}`);
-    }
+    const key = supplierKey(extraction.supplierName, extraction.supplierBusinessId);
 
-    const voucherNumber = `V-${voucherId}`;
-    const existing = await prisma.accountingEntry.findUnique({
-      where: { companyId_voucherNumber: { companyId, voucherNumber } },
+    // Tuplatarkistus: sama toimittaja + laskunumero, tai sama tosite jo käsitelty
+    const duplicate = await prisma.purchaseInvoice.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { voucherId },
+          ...(extraction.invoiceNumber ? [{ supplierKey: key, invoiceNumber: extraction.invoiceNumber }] : []),
+        ],
+      },
     });
-    if (existing) {
-      console.log(`Tosite ${voucherId} on jo kirjattu, ohitetaan.`);
+    if (duplicate) {
+      console.log(`Tosite ${voucherId}: ostolasku ${extraction.invoiceNumber} on jo kirjattu (${duplicate.id}), ohitetaan.`);
       return;
     }
 
-    const entryDate = data.date ? new Date(data.date) : new Date();
-    const entry = await prisma.accountingEntry.create({
-      data: {
-        companyId,
-        voucherId,
-        fiscalYearId: await findOpenFiscalYearId(companyId, entryDate),
-        entryDate,
-        voucherNumber,
-        description: `Automated entry for: ${supplier || 'Unknown Supplier'}`,
-        status: 'DRAFT',
-        createdBy: 'system-ml',
-        lines: {
-          create: [
-            {
-              accountNumber: expenseAccount,
-              debit: amount || 0,
-              credit: 0,
-              description: supplier || 'Expense',
-              companyId
-            },
-            {
-              accountNumber: ACCOUNTS.PAYABLES,
-              debit: 0,
-              credit: amount || 0,
-              description: 'Ostovelat',
-              companyId
-            }
-          ]
-        }
-      }
+    // Pankkimeno ilman tositetta, joka vastaa tätä laskua => liitetään tosite olemassa olevaan vientiin
+    const voucherless = await prisma.accountingEntry.findMany({
+      where: { companyId, needsVoucher: true, voucherId: null, entryDate: { gte: invoiceDate } },
+      include: { lines: true },
+      orderBy: { entryDate: 'asc' },
+    });
+    const paidAlready = voucherless.find((e) => {
+      const bankCredit = e.lines.find((l) => l.accountNumber === ACCOUNTS.BANK && Number(l.credit) > 0);
+      return bankCredit && Math.round(Number(bankCredit.credit) * 100) === Math.round(amount * 100)
+        && similarNames(e.counterparty, extraction.supplierName);
     });
 
-    console.log(`Successfully created draft entry ${entry.id} for company ${companyId}`);
-  } catch (error) {
-    console.error(`Failed to create accounting entry for voucher ${voucherId}:`, error);
+    const base = {
+      companyId,
+      voucherId,
+      supplierName: extraction.supplierName,
+      supplierBusinessId: extraction.supplierBusinessId,
+      supplierKey: key,
+      invoiceNumber: extraction.invoiceNumber,
+      invoiceDate,
+      dueDate: toDate(extraction.dueDate),
+      servicePeriodStart: toDate(extraction.servicePeriodStart),
+      servicePeriodEnd: toDate(extraction.servicePeriodEnd),
+      totalAmount: amount,
+      vatAmount: extraction.vatAmount,
+      referenceNumber: extraction.referenceNumber,
+      iban: extraction.iban,
+      confidence: extraction.confidence,
+      extractor: extraction.extractor,
+    };
+
+    if (paidAlready) {
+      const expenseLine = paidAlready.lines.find((l) => Number(l.debit) > 0);
+      await prisma.$transaction([
+        prisma.accountingEntry.update({
+          where: { id: paidAlready.id },
+          data: { voucherId, needsVoucher: false, reviewNote: paidAlready.status === 'DRAFT' ? 'Tosite liitetty, tarkista tili ja hyväksy' : null },
+        }),
+        prisma.purchaseInvoice.create({
+          data: {
+            ...base,
+            expenseAccount: expenseLine?.accountNumber || ACCOUNTS.SUSPENSE,
+            status: 'PAID',
+            accountingEntryId: paidAlready.id,
+            paymentEntryId: paidAlready.id,
+          },
+        }),
+      ]);
+      console.log(`Tosite ${voucherId} liitettiin jo kirjattuun pankkimenoon ${paidAlready.voucherNumber}`);
+      return;
+    }
+
+    // Tiliöinti: opittu toimittajan tili > tekoälyn ehdotus (jos tilikartassa) > selvitettävät erät
+    const learned = await getLearnedAccount(companyId, key);
+    const suggested = extraction.suggestedAccount && (await accountExists(companyId, extraction.suggestedAccount))
+      ? extraction.suggestedAccount : null;
+    const expenseAccount = learned || suggested || ACCOUNTS.SUSPENSE;
+    const { autoApprovable, issues } = assessAutoApproval(extraction, expenseAccount);
+
+    const voucherNumber = extraction.invoiceNumber ? `OL-${key}-${extraction.invoiceNumber}` : `V-${voucherId}`;
+    const description = `Ostolasku: ${extraction.supplierName}${extraction.invoiceNumber ? `, nro ${extraction.invoiceNumber}` : ''}`;
+
+    await prisma.$transaction(async (tx) => {
+      const entry = await tx.accountingEntry.create({
+        data: {
+          companyId,
+          voucherId,
+          fiscalYearId: await findOpenFiscalYearId(companyId, invoiceDate),
+          entryDate: invoiceDate,
+          voucherNumber,
+          description,
+          status: 'DRAFT',
+          createdBy: `system-voucher-${extraction.extractor}`,
+          counterparty: extraction.supplierName,
+          autoApprovable,
+          reviewNote: [learned ? `Tili opittu aiemmista korjauksista` : extraction.accountReason, ...issues]
+            .filter(Boolean).join(' · ') || null,
+          lines: {
+            create: [
+              { accountNumber: expenseAccount, debit: amount, credit: 0, description: extraction.supplierName, companyId },
+              { accountNumber: ACCOUNTS.PAYABLES, debit: 0, credit: amount, description: 'Ostovelat', companyId },
+            ],
+          },
+        },
+      });
+      await tx.purchaseInvoice.create({ data: { ...base, expenseAccount, accountingEntryId: entry.id } });
+    });
+    console.log(`Ostolasku ${extraction.supplierName} ${amount} € -> luonnos D ${expenseAccount} / K ${ACCOUNTS.PAYABLES}${autoApprovable ? ' (varma)' : ''}`);
+  } catch (err) {
+    console.error(`Tositteen ${voucherId} kirjaus epäonnistui:`, err);
   }
 };

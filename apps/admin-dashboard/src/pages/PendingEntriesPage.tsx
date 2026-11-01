@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, CheckCircle, Link2, Save, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, CheckCheck, FileText, Link2, Loader2, Save, Trash2 } from 'lucide-react';
 import { getCompanies } from '../api/companies';
-import { deleteEntry, getAccounts, getLedgerByStatus, postEntry, updateEntryLines } from '../api/accounting';
+import { deleteEntry, getAccounts, getLedgerByStatus, postAutoApprovable, postEntry, updateEntryLines } from '../api/accounting';
 import { getInvoices, updateInvoiceStatus } from '../api/invoices';
+import { listVouchers, openVoucherFile } from '../api/vouchers';
 
 const SUSPENSE = '1990';
 const RECEIVABLES = '1700';
@@ -75,14 +76,20 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
     return '';
   });
 
+  const missingVoucher = entry.needsVoucher && !entry.voucherId;
+
   const approve = () => {
     if (hasSuspense) { setError(t('pending.suspenseBlock')); return; }
+    // KPL 2:5 §: tosite puuttuu => käsittelijä vahvistaa, että tiliote riittää (esim. pankkikulut)
+    if (missingVoucher && !window.confirm(t('pending.noVoucherConfirm'))) return;
     run.mutate(async () => {
       if (dirty) await updateEntryLines(entry.id, lines);
-      await postEntry(entry.id);
+      await postEntry(entry.id, missingVoucher);
       return t('pending.approved', { voucher: entry.voucherNumber });
     });
   };
+
+  const showVoucher = () => openVoucherFile(entry.voucherId).catch((err) => setError(errorText(err)));
 
   const matchInvoice = (invoice: any) => run.mutate(async () => {
     const matched = lines.map((l) =>
@@ -109,8 +116,24 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
             {new Date(entry.entryDate).toLocaleDateString('fi-FI')} · {entry.voucherNumber} · {entry.createdBy}
           </div>
           <div className="font-semibold mt-1">{entry.description}</div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {entry.autoApprovable && (
+              <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">{t('pending.badgeSure')}</span>
+            )}
+            {missingVoucher && (
+              <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">{t('pending.badgeNoVoucher')}</span>
+            )}
+          </div>
+          {entry.reviewNote && <div className="text-xs text-slate-400 mt-2">{entry.reviewNote}</div>}
         </div>
-        <div className="text-xl font-bold">{eur(amount)}</div>
+        <div className="text-right">
+          <div className="text-xl font-bold">{eur(amount)}</div>
+          {entry.voucherId && (
+            <button type="button" onClick={showVoucher} className="mt-2 text-sm text-primary-400 hover:text-primary-300 inline-flex items-center gap-1">
+              <FileText className="w-4 h-4" />{t('pending.showVoucher')}
+            </button>
+          )}
+        </div>
       </div>
 
       <table className="w-full text-left text-sm">
@@ -233,6 +256,7 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
 
 const PendingEntriesPage = () => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
   const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
   const companyId: string | undefined = companies?.[0]?.id;
@@ -252,14 +276,55 @@ const PendingEntriesPage = () => {
     queryFn: () => getInvoices(companyId as string),
     enabled: !!companyId,
   });
+  // Tositteet, joiden luku on kesken tai epäonnistui (niistä ei vielä ole vientiä)
+  const { data: vouchers } = useQuery({
+    queryKey: ['vouchers', companyId],
+    queryFn: () => listVouchers(companyId as string),
+    enabled: !!companyId,
+    // päivitetään, kun luku on kesken, jotta valmistuneet luonnokset ilmestyvät
+    refetchInterval: (q) => ((q.state.data as any[] | undefined)?.some((v) => ['PENDING', 'PROCESSING'].includes(v.ocrStatus)) ? 3000 : false),
+  });
+  const processingVouchers = (vouchers || []).filter((v: any) => v.ocrStatus === 'PENDING' || v.ocrStatus === 'PROCESSING');
+  const failedVouchers = (vouchers || []).filter((v: any) => v.ocrStatus === 'FAILED');
+  const prevProcessing = useRef(0);
+  useEffect(() => {
+    // luku valmistui => haetaan uudet luonnokset
+    if (prevProcessing.current > processingVouchers.length) queryClient.invalidateQueries({ queryKey: ['pending'] });
+    prevProcessing.current = processingVouchers.length;
+  }, [processingVouchers.length, queryClient]);
+
   const openInvoices = (invoices || []).filter((i: any) => i.status === 'SENT' || i.status === 'OVERDUE');
   const sorted = [...(entries || [])].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+  const sureCount = sorted.filter((e) => e.autoApprovable).length;
+
+  const approveSure = useMutation({
+    mutationFn: () => postAutoApprovable(companyId as string),
+    onSuccess: (r) => {
+      setNotice(t('pending.bulkApproved', { count: r.posted }) + (r.skipped.length ? ` ${t('pending.bulkSkipped', { count: r.skipped.length })}` : ''));
+      queryClient.invalidateQueries({ queryKey: ['pending'] });
+      queryClient.invalidateQueries({ queryKey: ['accStats'] });
+      queryClient.invalidateQueries({ queryKey: ['postedLedger'] });
+    },
+    onError: (err) => setNotice(errorText(err)),
+  });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">{t('pending.title')}</h2>
-        <p className="text-slate-400 mt-1">{t('pending.subtitle')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">{t('pending.title')}</h2>
+          <p className="text-slate-400 mt-1">{t('pending.subtitle')}</p>
+        </div>
+        {sureCount > 0 && (
+          <button
+            type="button"
+            onClick={() => approveSure.mutate()}
+            disabled={approveSure.isPending}
+            className="premium-button premium-gradient text-white flex items-center space-x-2"
+          >
+            <CheckCheck className="w-4 h-4" /><span>{t('pending.approveAllSure', { count: sureCount })}</span>
+          </button>
+        )}
       </div>
 
       {notice && (
@@ -267,6 +332,24 @@ const PendingEntriesPage = () => {
           <CheckCircle className="w-4 h-4" /><span>{notice}</span>
         </div>
       )}
+
+      {processingVouchers.length > 0 && (
+        <div className="glass-card p-4 flex items-center gap-3 text-sm text-slate-300">
+          <Loader2 className="w-4 h-4 animate-spin text-primary-400" />
+          <span>{t('pending.processing', { count: processingVouchers.length })}</span>
+        </div>
+      )}
+      {failedVouchers.map((v: any) => (
+        <div key={v.id} className="glass-card p-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div>
+            <div className="font-semibold text-rose-300">{t('pending.readFailed')}: {v.files?.[0]?.filename}</div>
+            <div className="text-slate-400 mt-1">{v.ocrData?.error}</div>
+          </div>
+          <button type="button" onClick={() => openVoucherFile(v.id).catch((err) => setNotice(errorText(err)))} className="text-primary-400 hover:text-primary-300 inline-flex items-center gap-1">
+            <FileText className="w-4 h-4" />{t('pending.showVoucher')}
+          </button>
+        </div>
+      ))}
 
       {isLoading || !companies ? (
         <div className="glass-card p-8 text-center text-slate-400">{t('common.loading')}</div>

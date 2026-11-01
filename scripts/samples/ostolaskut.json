@@ -1,0 +1,62 @@
+[
+  {
+    "file": "kaukolampo-2026-10.pdf",
+    "supplier": "Kaukolämpö Esimerkki Oy",
+    "number": "KL-88412",
+    "amount": 1389.4,
+    "ref": "88412 00017",
+    "iban": "FI55 1234 5600 0011 22",
+    "paid": "ref",
+    "payDate": "2026-11-13"
+  },
+  {
+    "file": "vesi-2026-10.pdf",
+    "supplier": "Esimerkin Vesi Oy",
+    "number": "2026-10-5531",
+    "amount": 402.15,
+    "ref": "55310 00026",
+    "iban": "FI66 2345 6700 0022 33",
+    "paid": "name",
+    "payDate": "2026-11-17"
+  },
+  {
+    "file": "sahko-2026-10.pdf",
+    "supplier": "Sähköyhtiö Demo Oy",
+    "number": "S-301977",
+    "amount": 198.6,
+    "ref": "30197 70035",
+    "iban": "FI77 3456 7800 0033 44",
+    "paid": "amount",
+    "payDate": "2026-11-18"
+  },
+  {
+    "file": "isannointi-2026-11.pdf",
+    "supplier": "Isännöintitoimisto Malli Oy",
+    "number": "IS-2026-11-07",
+    "amount": 650.0,
+    "ref": "20261 10074",
+    "iban": "FI88 4567 8900 0044 55",
+    "paid": "ref",
+    "payDate": "2026-11-14"
+  },
+  {
+    "file": "siivous-2026-11.pdf",
+    "supplier": "Siivouspalvelu Testi Oy",
+    "number": "1127",
+    "amount": 310.0,
+    "ref": "11270 00081",
+    "iban": "FI99 5678 9000 0055 66",
+    "paid": null,
+    "payDate": null
+  },
+  {
+    "file": "rannit-2026-11.pdf",
+    "supplier": "Rakennuspalvelu Virtanen Tmi",
+    "number": "V-0412",
+    "amount": 245.0,
+    "ref": "4120 00096",
+    "iban": "FI10 6789 0100 0066 77",
+    "paid": "ref",
+    "payDate": "2026-11-19"
+  }
+]

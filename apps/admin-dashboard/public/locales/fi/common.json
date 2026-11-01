@@ -35,7 +35,16 @@
     "sameAmount": "sama summa",
     "suspenseBlock": "Viennillä on yhä tili 1990 Selvitettävät erät. Vaihda oikea tili tai kohdista maksu laskuun ennen hyväksyntää.",
     "matched": "Maksu kohdistettu laskuun {{invoice}} ja lasku merkitty maksetuksi.",
-    "approved": "Vienti {{voucher}} hyväksytty."
+    "approved": "Vienti {{voucher}} hyväksytty.",
+    "badgeSure": "Varma",
+    "badgeNoVoucher": "Tosite puuttuu",
+    "showVoucher": "Näytä tosite",
+    "noVoucherConfirm": "Viennillä ei ole tositetta (ostolasku tai kuitti). Hyväksytäänkö tiliotteen perusteella? Tämä sopii esim. pankin palvelumaksuille. Muuten lataa tosite ensin, niin se liitetään tähän vientiin automaattisesti.",
+    "approveAllSure": "Hyväksy kaikki varmat ({{count}})",
+    "bulkApproved": "Hyväksyttiin {{count}} vientiä.",
+    "bulkSkipped": "{{count}} ohitettiin (tarkista ne käsin).",
+    "processing": "Luetaan {{count}} tositetta…",
+    "readFailed": "Tositteen luku epäonnistui"
   },
   "ledger": {
     "title": "Pääkirja",

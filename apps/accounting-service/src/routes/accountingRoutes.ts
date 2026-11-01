@@ -13,7 +13,9 @@ const company = requireCompanyAccess({ required: true });
 router.post('/entries', company, entryController.createEntry as any);
 router.patch('/entries/:id', entryController.updateEntry as any);
 router.delete('/entries/:id', entryController.deleteEntry as any);
+router.post('/entries/post-auto', company, entryController.postAutoApprovable as any);
 router.post('/entries/:id/post', entryController.postEntry as any);
+router.get('/purchase-invoices', company, entryController.listPurchaseInvoices as any);
 router.get('/ledger', company, entryController.getLedger as any);
 router.get('/stats', company, entryController.getStats as any);
 
