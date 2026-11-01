@@ -29,13 +29,13 @@ POSTED_STATUSES = "POSTED,LOCKED"
 
 
 def _forward_headers(authorization: Optional[str]) -> Dict[str, str]:
-    headers: Dict[str, str] = {}
+    # Käyttäjän kutsussa välitetään VAIN käyttäjän tunniste: silloin accounting-service
+    # tarkistaa yhtiön jäsenyyden. Palvelutunniste ohittaisi tarkistuksen, joten sitä
+    # käytetään vain palveluiden välisissä kutsuissa (ei käyttäjää).
     if authorization:
-        headers["Authorization"] = authorization
+        return {"Authorization": authorization}
     service_token = os.getenv("SERVICE_TOKEN")
-    if service_token:
-        headers["x-service-token"] = service_token
-    return headers
+    return {"x-service-token": service_token} if service_token else {}
 
 
 async def _get(path: str, params: Dict, authorization: Optional[str]):
@@ -46,6 +46,13 @@ async def _get(path: str, params: Dict, authorization: Optional[str]):
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
+            # Käyttöoikeusvirheet välitetään sellaisenaan (403 = ei pääsyä yhtiöön)
+            if e.response.status_code in (400, 401, 403, 404):
+                try:
+                    detail = e.response.json().get("error")
+                except ValueError:
+                    detail = None
+                raise HTTPException(status_code=e.response.status_code, detail=detail or "Kirjanpitopalvelu hylkäsi pyynnön")
             # Aiemmin virhe nieltiin ja palautettiin tyhjä raportti, joka näytti nollatulokselta.
             raise HTTPException(status_code=502, detail=f"Kirjanpitopalvelu vastasi {e.response.status_code}")
         except httpx.HTTPError as e:

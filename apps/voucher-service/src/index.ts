@@ -8,7 +8,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { connectProducer, publishVoucherUploaded } from './utils/kafka';
 import { uploadToS3, bucketName } from './utils/s3';
-import { requireAuth } from './middleware/requireAuth';
+import { requireAuth, requireCompanyAccess } from './middleware/requireAuth';
 import { createHash } from 'crypto';
 
 const app = express();
@@ -35,7 +35,7 @@ app.get('/health', (req, res) => {
 });
 
 // Voucher upload endpoint
-app.post('/api/v1/vouchers/upload', requireAuth, upload.single('file'), async (req, res) => {
+app.post('/api/v1/vouchers/upload', requireAuth, upload.single('file'), requireCompanyAccess({ required: true }), async (req, res) => {
   try {
     const file = req.file;
     const { companyId, voucherType, voucherDate } = req.body;

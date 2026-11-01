@@ -3,7 +3,7 @@ import { PrismaClient } from '../../prisma/client';
 import axios from 'axios';
 import * as finvoiceService from '../services/finvoiceService';
 import { nextInvoiceNumber, referenceFor } from '../services/invoiceNumberService';
-import { serviceHeaders } from '../middleware/requireAuth';
+import { assertCompanyAccess, serviceHeaders } from '../middleware/requireAuth';
 import { publishInvoiceCreated, publishInvoiceStatusChanged } from '../utils/kafka';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -126,6 +126,7 @@ export const getFinvoiceXml = async (req: Request, res: Response) => {
     });
 
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (!(await assertCompanyAccess(req, res, invoice.companyId))) return;
 
     // Mock company data (in real app, fetch from User Service)
     const xml = finvoiceService.generateFinvoiceXml({
@@ -177,6 +178,7 @@ export const updateInvoiceStatus = async (req: Request, res: Response) => {
 
     const invoice = await prisma.invoice.findUnique({ where: { id } });
     if (!invoice) return res.status(404).json({ error: 'Laskua ei löydy' });
+    if (!(await assertCompanyAccess(req, res, invoice.companyId))) return;
     if (!ALLOWED_TRANSITIONS[invoice.status].includes(status)) {
       return res.status(409).json({ error: `Laskun tilaa ei voi muuttaa: ${invoice.status} -> ${status}` });
     }

@@ -74,6 +74,23 @@ export const getMyCompanies = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * Onko kirjautuneella käyttäjällä pääsy yhtiöön? Muut palvelut kutsuvat tätä käyttäjän
+ * omalla tunnisteella (requireAuth.ts: hasCompanyAccess). 204 = pääsy, 403 = ei pääsyä.
+ */
+export const checkCompanyAccess = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SERVICE') return res.status(204).send();
+    const membership = await prisma.userCompany.findUnique({
+      where: { userId_companyId: { userId: req.user.userId, companyId: req.params.id } },
+    });
+    return membership ? res.status(204).send() : res.status(403).json({ error: 'Ei käyttöoikeutta tähän yhtiöön' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Käyttöoikeuden tarkistus epäonnistui' });
+  }
+};
+
 export const getStats = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });

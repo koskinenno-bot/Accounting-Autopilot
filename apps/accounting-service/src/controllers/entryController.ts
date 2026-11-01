@@ -3,7 +3,7 @@ import { EntryStatus } from '../../prisma/client';
 import axios from 'axios';
 import { prisma } from '../db';
 import { toCents, validateLines } from '../validation';
-import { serviceHeaders } from '../middleware/requireAuth';
+import { assertCompanyAccess, serviceHeaders } from '../middleware/requireAuth';
 
 const actorOf = (req: Request): string => (req as any).user?.userId || 'system';
 const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:3009/api/v1';
@@ -103,6 +103,7 @@ export const updateEntry = async (req: Request, res: Response) => {
     });
 
     if (!existing) return res.status(404).json({ error: 'Vientiä ei löydy' });
+    if (!(await assertCompanyAccess(req, res, existing.companyId))) return;
 
     // KPL 2:7 § - Muuttumattomuus: kirjattua vientiä ei muuteta, se oikaistaan korjausviennillä.
     if (existing.status !== EntryStatus.DRAFT || existing.fiscalYear?.status === 'CLOSED') {
@@ -170,6 +171,7 @@ export const deleteEntry = async (req: Request, res: Response) => {
     });
 
     if (!existing) return res.status(404).json({ error: 'Vientiä ei löydy' });
+    if (!(await assertCompanyAccess(req, res, existing.companyId))) return;
 
     // KPL 2:7 §: kirjattua (POSTED/LOCKED) vientiä ei poisteta, vaan se oikaistaan
     // korjausviennillä. Vain luonnoksen voi poistaa.
@@ -264,6 +266,7 @@ export const postEntry = async (req: Request, res: Response) => {
     const { id } = req.params;
     const existing = await prisma.accountingEntry.findUnique({ where: { id }, include: { lines: true } });
     if (!existing) return res.status(404).json({ error: 'Vientiä ei löydy' });
+    if (!(await assertCompanyAccess(req, res, existing.companyId))) return;
     if (existing.status !== EntryStatus.DRAFT) {
       return res.status(409).json({ error: `Vienti on jo tilassa ${existing.status}` });
     }
@@ -359,6 +362,7 @@ export const closeFiscalYear = async (req: Request, res: Response) => {
     const { id } = req.params;
     const fy = await prisma.fiscalYear.findUnique({ where: { id } });
     if (!fy) return res.status(404).json({ error: 'Tilikautta ei löydy' });
+    if (!(await assertCompanyAccess(req, res, fy.companyId))) return;
     if (fy.status === 'CLOSED') return res.status(409).json({ error: 'Tilikausi on jo suljettu' });
 
     const drafts = await prisma.accountingEntry.count({ where: { fiscalYearId: id, status: EntryStatus.DRAFT } });

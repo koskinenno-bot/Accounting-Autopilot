@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '../../prisma/client';
 import { createHash } from 'crypto';
 import fs from 'fs';
+import { assertCompanyAccess } from '../middleware/requireAuth';
 
 const prisma = new PrismaClient();
 
@@ -63,6 +64,10 @@ export const archiveDocument = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { retentionYears } = req.body;
 
+    const existing = await prisma.document.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Document not found' });
+    if (!(await assertCompanyAccess(req, res, existing.companyId))) return;
+
     const retentionUntil = new Date();
     retentionUntil.setFullYear(retentionUntil.getFullYear() + (retentionYears || 10));
 
@@ -88,6 +93,7 @@ export const deleteDocument = async (req: Request, res: Response) => {
     const document = await prisma.document.findUnique({ where: { id } });
     
     if (!document) return res.status(404).json({ error: 'Document not found' });
+    if (!(await assertCompanyAccess(req, res, document.companyId))) return;
     if (document.isArchived) {
       return res.status(403).json({ error: 'Archived documents cannot be deleted' });
     }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import * as documentController from '../controllers/documentController';
-import { requireAuth } from '../middleware/requireAuth';
+import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
 
@@ -21,8 +21,11 @@ const upload = multer({ storage: storage, limits: { fileSize: 25 * 1024 * 1024 }
 
 router.use(requireAuth);
 
-router.post('/upload', upload.single('file'), documentController.uploadDocument as any);
-router.get('/', documentController.getDocuments as any);
+const company = requireCompanyAccess({ required: true });
+
+// :id-reitit tarkistavat dokumentin yhtiön käsittelijässä
+router.post('/upload', upload.single('file'), company, documentController.uploadDocument as any);
+router.get('/', company, documentController.getDocuments as any);
 router.post('/:id/archive', documentController.archiveDocument as any);
 router.delete('/:id', documentController.deleteDocument as any);
 
