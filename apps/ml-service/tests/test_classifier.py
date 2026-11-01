@@ -21,6 +21,12 @@ class ClassifierTests(unittest.TestCase):
         self.assertEqual(match_keywords("Vesimaksu huhtikuu")[0]["code"], "3100")
         self.assertEqual(match_keywords("Kaukolämpö 03/2026")[0]["code"], "4500")
 
+    def test_compound_words(self):
+        # pankkitapahtuman kuvaus = saaja + viesti (accounting-servicen bankConsumer)
+        self.assertEqual(match_keywords("hsy vesi ja jätevesi 09/2026")[0]["code"], "4600")
+        self.assertEqual(match_keywords("hsy jätehuolto jätehuolto 09/2026")[0]["code"], "4300")
+        self.assertEqual(match_keywords("kiinteistöhuolto oy esimerkki huolto 10/2026")[0]["code"], "4100")
+
     def test_short_keyword_needs_whole_word(self):
         self.assertEqual(match_keywords("If Vahinkovakuutus")[0]["code"], "4800")
         self.assertEqual(match_keywords("tariffimuutos"), [])

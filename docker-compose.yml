@@ -27,7 +27,8 @@ services:
       - ai-accountant-network
 
   kafka:
-    image: bitnami/kafka:3.5
+    # Bitnami poisti julkiset docker.io/bitnami-imaget 2025; sama image löytyy bitnamilegacy-nimiavaruudesta.
+    image: bitnamilegacy/kafka:3.5
     container_name: ai-accountant-kafka
     ports:
       - "9092:9092"
@@ -46,7 +47,9 @@ services:
       - ai-accountant-network
 
   minio:
-    image: minio/minio:latest
+    # minio/minio ei ole enää vedettävissä Docker Hubista; Bitnamin image käynnistää palvelimen
+    # itse (API 9000, konsoli 9001) ja tallentaa datan polkuun /bitnami/minio/data.
+    image: bitnamilegacy/minio:2025.7.23
     container_name: ai-accountant-minio
     ports:
       - "9000:9000"
@@ -54,9 +57,8 @@ services:
     environment:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=password
-    command: server /data --console-address ":9001"
     volumes:
-      - minio_data:/data
+      - minio_data:/bitnami/minio/data
     networks:
       - ai-accountant-network
 

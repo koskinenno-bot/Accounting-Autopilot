@@ -13,6 +13,35 @@
     "creatingAccount": "Luo uusi tili",
     "error": "Kirjautuminen epäonnistui. Tarkista sähköposti ja salasana."
   },
+  "nav": {
+    "companies": "Yhtiöt",
+    "financialStatements": "Tuloslaskelma ja tase",
+    "settings": "Asetukset"
+  },
+  "pending": {
+    "title": "Käsittelemättömät viennit",
+    "subtitle": "Automaation luomat luonnokset, jotka odottavat tarkistusta ja hyväksyntää.",
+    "empty": "Kaikki viennit on käsitelty.",
+    "account": "Tili",
+    "debit": "Debet",
+    "credit": "Kredit",
+    "save": "Tallenna tilit",
+    "approve": "Hyväksy",
+    "delete": "Poista luonnos",
+    "deleteConfirm": "Poistetaanko luonnos {{voucher}}? Tätä ei voi perua.",
+    "matchInvoice": "Kohdista laskuun",
+    "matchHint": "Valitse avoin lasku, jota maksu koskee. Vienti kirjataan myyntisaamisia vastaan, hyväksytään ja lasku merkitään maksetuksi.",
+    "noOpenInvoices": "Yhtiöllä ei ole avoimia laskuja.",
+    "sameAmount": "sama summa",
+    "suspenseBlock": "Viennillä on yhä tili 1990 Selvitettävät erät. Vaihda oikea tili tai kohdista maksu laskuun ennen hyväksyntää.",
+    "matched": "Maksu kohdistettu laskuun {{invoice}} ja lasku merkitty maksetuksi.",
+    "approved": "Vienti {{voucher}} hyväksytty."
+  },
+  "ledger": {
+    "title": "Pääkirja",
+    "subtitle": "Kirjatut ja lukitut viennit riveineen.",
+    "empty": "Ei kirjattuja vientejä."
+  },
   "dashboard": {
     "title": "Hallintapaneeli",
     "automationRate": "Automaatioaste",

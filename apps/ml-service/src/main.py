@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from dotenv import load_dotenv
@@ -11,6 +12,14 @@ from classifier import KNOWLEDGE_BASE, SUSPENSE_ACCOUNT, match_keywords  # noqa:
 load_dotenv()
 
 app = FastAPI(title="AI Accountant ML Service", version="1.1.0")
+
+# Dashboard kutsuu palvelua selaimesta (health + tiliöintiehdotukset), kuten reporting-serviceä.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class TransactionData(BaseModel):
     description: str

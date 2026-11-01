@@ -1,5 +1,9 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { login as apiLogin, register as apiRegister } from '../api/auth';
+import { AUTH_EXPIRED_EVENT, installSessionHandling } from '../api/session';
+
+installSessionHandling();
 
 interface User {
   id: string;
@@ -51,12 +55,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(data.user));
   };
 
-  const logout = () => {
+  const queryClient = useQueryClient();
+
+  const logout = useCallback(() => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-  };
+    // Tyhjennetään välimuisti, ettei seuraava käyttäjä näe edellisen yhtiön tietoja
+    queryClient.clear();
+  }, [queryClient]);
+
+  // API-kutsun 401 (vanhentunut token) => uloskirjaus; ProtectedRoute ohjaa /login-sivulle
+  useEffect(() => {
+    window.addEventListener(AUTH_EXPIRED_EVENT, logout);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, logout);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, register, logout }}>

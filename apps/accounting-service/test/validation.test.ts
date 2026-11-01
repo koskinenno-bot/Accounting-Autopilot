@@ -45,3 +45,18 @@ test('viitteellinen suoritus kirjataan myyntisaamisia vastaan, ei uudelleen tuot
     debitAccount: ACCOUNTS.SUSPENSE, creditAccount: ACCOUNTS.BANK,
   });
 });
+
+test('lähtevä maksu kirjataan ML:n ehdottamalle kulutilille vain varmalla ja olemassa olevalla tilillä', () => {
+  const dbit = { creditDebit: 'DBIT' as const };
+  assert.deepEqual(resolveBankAccounts(dbit, { account: '4500', confidence: 0.95, accountExists: true }), {
+    debitAccount: '4500', creditAccount: ACCOUNTS.BANK,
+  });
+  // liian epävarma
+  assert.equal(resolveBankAccounts(dbit, { account: '4500', confidence: 0.5, accountExists: true }).debitAccount, ACCOUNTS.SUSPENSE);
+  // tiliä ei ole tilikartassa
+  assert.equal(resolveBankAccounts(dbit, { account: '5999', confidence: 0.95, accountExists: false }).debitAccount, ACCOUNTS.SUSPENSE);
+  // ML ei vastannut
+  assert.equal(resolveBankAccounts(dbit, null).debitAccount, ACCOUNTS.SUSPENSE);
+  // saapuvaan maksuun ehdotus ei vaikuta
+  assert.equal(resolveBankAccounts({ creditDebit: 'CRDT', referenceNumber: '123' }, { account: '4500', confidence: 1, accountExists: true }).creditAccount, ACCOUNTS.RECEIVABLES);
+});

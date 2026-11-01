@@ -16,6 +16,11 @@ KNOWLEDGE_BASE = {
     "huolto": {"code": "4100", "label": "Kiinteistönhoito ja huolto"},
     "hsy": {"code": "4300", "label": "Puhtaanapito ja jätehuolto (HSY)"},
     "jäte": {"code": "4300", "label": "Puhtaanapito ja jätehuolto"},
+    # Pidemmät yhdyssanat voittavat lyhyemmät osumat: "jätevesi" on vettä (ei "jäte"),
+    # "jätehuolto" on jätehuoltoa (ei kiinteistön "huolto").
+    "jätevesi": {"code": "4600", "label": "Vesi ja jätevesi"},
+    "jätehuolto": {"code": "4300", "label": "Puhtaanapito ja jätehuolto"},
+    "kiinteistöhuolto": {"code": "4100", "label": "Kiinteistönhoito ja huolto"},
     "siivous": {"code": "4300", "label": "Puhtaanapito ja jätehuolto"},
     "lämpö": {"code": "4500", "label": "Lämmitys"},
     "kaukolämpö": {"code": "4500", "label": "Lämmitys"},

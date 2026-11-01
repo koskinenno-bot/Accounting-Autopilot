@@ -2,20 +2,26 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { getMaintenanceCalculation } from '../api/reports';
+import { getCompanies } from '../api/companies';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Calculator, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
 
 const VastikeReportPage: React.FC = () => {
   const { t } = useTranslation();
-  const companyId = 'test-company-id'; // Replace with real context
+  // Sama valinta kuin ReportsPagella: käyttäjän ensimmäinen yhtiö
+  // (aiemmin kovakoodattu 'test-company-id' => raportti näytti aina nollia).
+  const { data: companies, isLoading: companiesLoading } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
+  const companyId: string | undefined = companies?.[0]?.id;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['maintenanceCalculation', companyId],
-    queryFn: () => getMaintenanceCalculation(companyId),
+    queryFn: () => getMaintenanceCalculation(companyId as string),
+    enabled: !!companyId,
   });
 
-  if (isLoading) return <div className="p-8 text-center">{t('common.loading')}</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Virhe raportin latauksessa</div>;
+  if (companiesLoading || (companyId && isLoading)) return <div className="p-8 text-center">{t('common.loading')}</div>;
+  if (!companyId) return <div className="p-8 text-center text-slate-400">Ei yhtiötä. Lisää yhtiö Yhtiöt-sivulla.</div>;
+  if (error || !data) return <div className="p-8 text-center text-red-500">Virhe raportin latauksessa</div>;
 
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' }).format(amount);

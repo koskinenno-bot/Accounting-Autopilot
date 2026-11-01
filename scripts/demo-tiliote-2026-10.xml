@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>DEMOKOTI-2026-10</MsgId>
+      <CreDtTm>2026-11-01T08:00:00</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>DEMOKOTI-STMT-2026-10</Id>
+      <CreDtTm>2026-11-01T08:00:00</CreDtTm>
+      <FrToDt><FrDtTm>2026-10-01T00:00:00</FrDtTm><ToDtTm>2026-10-31T23:59:59</ToDtTm></FrToDt>
+      <Acct><Id><IBAN>FI2112345600000785</IBAN></Id><Ccy>EUR</Ccy><Ownr><Nm>As Oy Demokoti</Nm></Ownr></Acct>
+      <TxsSummry>
+        <TtlCdtNtries><NbOfNtries>5</NbOfNtries><Sum>1390.50</Sum></TtlCdtNtries>
+        <TtlDbtNtries><NbOfNtries>8</NbOfNtries><Sum>4234.71</Sum></TtlDbtNtries>
+      </TxsSummry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-001</NtryRef>
+        <Amt Ccy="EUR">157.50</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-03</Dt></BookgDt>
+        <ValDt><Dt>2026-10-03</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Dbtr><Nm>Aino Esimerkki</Nm></Dbtr></RltdPties>
+            <RmtInf><Strd><CdtrRefInf><Tp><CdOrPrtry><Cd>SCOR</Cd></CdOrPrtry></Tp><Ref>490710010</Ref></CdtrRefInf></Strd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-002</NtryRef>
+        <Amt Ccy="EUR">234.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-05</Dt></BookgDt>
+        <ValDt><Dt>2026-10-05</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Dbtr><Nm>Eero Testinen</Nm></Dbtr></RltdPties>
+            <RmtInf><Ustrd>Vastike lokakuu A2</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-003</NtryRef>
+        <Amt Ccy="EUR">306.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-05</Dt></BookgDt>
+        <ValDt><Dt>2026-10-05</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Dbtr><Nm>Liisa Malli</Nm></Dbtr></RltdPties>
+            <RmtInf><Strd><CdtrRefInf><Tp><CdOrPrtry><Cd>SCOR</Cd></CdOrPrtry></Tp><Ref>490710036</Ref></CdtrRefInf></Strd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-004</NtryRef>
+        <Amt Ccy="EUR">360.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-05</Dt></BookgDt>
+        <ValDt><Dt>2026-10-05</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Dbtr><Nm>Matti Demo</Nm></Dbtr></RltdPties>
+            <RmtInf><Strd><CdtrRefInf><Tp><CdOrPrtry><Cd>SCOR</Cd></CdOrPrtry></Tp><Ref>490710049</Ref></CdtrRefInf></Strd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-005</NtryRef>
+        <Amt Ccy="EUR">333.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-05</Dt></BookgDt>
+        <ValDt><Dt>2026-10-05</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Dbtr><Nm>Pekka Harjoitus</Nm></Dbtr></RltdPties>
+            <RmtInf><Strd><CdtrRefInf><Tp><CdOrPrtry><Cd>SCOR</Cd></CdOrPrtry></Tp><Ref>490710065</Ref></CdtrRefInf></Strd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-006</NtryRef>
+        <Amt Ccy="EUR">1452.36</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-08</Dt></BookgDt>
+        <ValDt><Dt>2026-10-08</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>Helen Oy</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Kaukolämpö 09/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-007</NtryRef>
+        <Amt Ccy="EUR">381.20</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-09</Dt></BookgDt>
+        <ValDt><Dt>2026-10-09</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>HSY</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Vesi ja jätevesi 09/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-008</NtryRef>
+        <Amt Ccy="EUR">118.90</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-12</Dt></BookgDt>
+        <ValDt><Dt>2026-10-12</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>HSY Jätehuolto</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Jätehuolto 09/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-009</NtryRef>
+        <Amt Ccy="EUR">209.75</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-14</Dt></BookgDt>
+        <ValDt><Dt>2026-10-14</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>Fortum Markets Oy</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Sähkö yhteiset tilat 09/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-010</NtryRef>
+        <Amt Ccy="EUR">650.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-15</Dt></BookgDt>
+        <ValDt><Dt>2026-10-15</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>Isännöinti Oy Esimerkki</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Isännöintipalkkio 10/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-011</NtryRef>
+        <Amt Ccy="EUR">890.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-20</Dt></BookgDt>
+        <ValDt><Dt>2026-10-20</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>If Vahinkovakuutus Oyj</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Kiinteistövakuutus 2026 erä 2</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-012</NtryRef>
+        <Amt Ccy="EUR">520.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-22</Dt></BookgDt>
+        <ValDt><Dt>2026-10-22</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>Kiinteistöhuolto Oy Esimerkki</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Huolto 10/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <NtryRef>DEMO-2026-10-013</NtryRef>
+        <Amt Ccy="EUR">12.50</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-31</Dt></BookgDt>
+        <ValDt><Dt>2026-10-31</Dt></ValDt>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Nm>Demopankki Oyj</Nm></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Pankin palvelumaksu 10/2026</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

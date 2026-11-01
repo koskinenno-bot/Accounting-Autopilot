@@ -13,18 +13,38 @@ const kafka = new Kafka({
 
 export const consumer: Consumer = kafka.consumer({ groupId: 'accounting-group' });
 
-export const connectConsumer = async () => {
+const TOPICS = ['company.created', 'voucher.classified', 'bank.statement.received', 'invoice.created', 'invoice.status.changed'];
+
+/**
+ * Luo puuttuvat topicit ennen tilausta. Tyhjässä Kafkassa topic syntyy vasta ensimmäisestä
+ * viestistä, ja puuttuvan topicin tilaus kaatoi koko kuluttajan: yhtään kirjausta ei syntynyt.
+ */
+const ensureTopics = async () => {
+  const admin = kafka.admin();
+  await admin.connect();
   try {
+    const existing = await admin.listTopics();
+    const missing = TOPICS.filter((t) => !existing.includes(t));
+    if (missing.length) {
+      await admin.createTopics({ topics: missing.map((topic) => ({ topic })), waitForLeaders: true });
+      console.log(`Luotiin Kafka-topicit: ${missing.join(', ')}`);
+    }
+  } finally {
+    await admin.disconnect();
+  }
+};
+
+export const connectConsumer = async (attempt = 1): Promise<void> => {
+  try {
+    await ensureTopics();
     await consumer.connect();
     console.log('Kafka consumer connected successfully in accounting-service');
-    
+
     // Subscribe to topics
-    await consumer.subscribe({ topic: 'company.created', fromBeginning: true });
-    await consumer.subscribe({ topic: 'voucher.classified', fromBeginning: true });
-    await consumer.subscribe({ topic: 'bank.statement.received', fromBeginning: true });
-    await consumer.subscribe({ topic: 'invoice.created', fromBeginning: true });
-    await consumer.subscribe({ topic: 'invoice.status.changed', fromBeginning: true });
-    
+    for (const topic of TOPICS) {
+      await consumer.subscribe({ topic, fromBeginning: true });
+    }
+
     // Start listening
     await consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
@@ -56,7 +76,11 @@ export const connectConsumer = async () => {
       },
     });
   } catch (error) {
-    console.error('Failed to connect Kafka consumer:', error);
+    // Kafka voi käynnistyä palvelua hitaammin: yritetään uudelleen sen sijaan että jäädään ilman kuluttajaa.
+    const delay = Math.min(30, 2 ** attempt) * 1000;
+    console.error(`Failed to connect Kafka consumer (yritys ${attempt}), uusi yritys ${delay / 1000} s kuluttua:`, error);
+    try { await consumer.disconnect(); } catch { /* ei yhteyttä */ }
+    setTimeout(() => connectConsumer(attempt + 1), delay);
   }
 };
 

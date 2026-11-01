@@ -41,7 +41,7 @@ if (-not $SkipInstall) {
   Step 'npm install'
   npm install
   if ($LASTEXITCODE -ne 0) { throw 'npm install epäonnistui' }
-  Step 'Python-riippuvuudet (reporting-service)'
+  Step 'Python-riippuvuudet (reporting-service, ml-service)'
   python -m pip install -q fastapi uvicorn httpx python-dotenv PyJWT
 }
 
@@ -66,6 +66,8 @@ foreach ($svc in $node) {
   Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='$svc'; Set-Location '$root\apps\$svc'; npm run dev"
 }
 Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='reporting-service'; Set-Location '$root\apps\reporting-service\src'; python main.py"
+# ml-service: pankin lähtevien maksujen tiliöintiehdotukset (portti 8001)
+Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='ml-service'; Set-Location '$root\apps\ml-service\src'; python main.py"
 Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='admin-dashboard'; Set-Location '$root\apps\admin-dashboard'; npm run dev"
 
 Step 'Odotetaan dashboardia'

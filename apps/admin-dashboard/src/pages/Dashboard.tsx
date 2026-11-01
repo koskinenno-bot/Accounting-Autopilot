@@ -1,4 +1,5 @@
-import { Activity, Users, FileCheck, AlertCircle, ArrowUpRight, ArrowDownRight, Upload, CreditCard, Brain, CheckCircle } from 'lucide-react';
+import { Activity, Users, FileCheck, AlertCircle, ArrowUpRight, Upload, CreditCard, Brain } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -11,23 +12,36 @@ import { useTranslation } from 'react-i18next';
 
 const ML_SERVICE_URL = import.meta.env.VITE_ML_SERVICE_URL || 'http://localhost:8001/api/v1';
 
-const StatCard = ({ title, value, change, trend, icon: Icon }: { title: string, value: string, change: string, trend: 'up' | 'down', icon: any }) => (
-  <div className="glass-card p-6 flex flex-col space-y-4">
-    <div className="flex items-center justify-between">
-      <div className="w-12 h-12 bg-primary-500/10 rounded-xl flex items-center justify-center">
-        <Icon className="w-6 h-6 text-primary-400" />
+// Aiemmat muutosluvut (+1, -2 ...) olivat kovakoodattuja eivätkä perustuneet dataan, joten ne poistettiin.
+// to: kortti on linkki (esim. Käsittelemättömät -> /pending).
+const StatCard = ({ title, value, icon: Icon, to, hint }: { title: string, value: string, icon: any, to?: string, hint?: string }) => {
+  const body = (
+    <>
+      <div className="flex items-center justify-between">
+        <div className="w-12 h-12 bg-primary-500/10 rounded-xl flex items-center justify-center">
+          <Icon className="w-6 h-6 text-primary-400" />
+        </div>
+        {to && hint && (
+          <div className="flex items-center space-x-1 text-sm text-primary-400 opacity-70 group-hover:opacity-100">
+            <span>{hint}</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </div>
+        )}
       </div>
-      <div className={`flex items-center space-x-1 text-sm ${trend === 'up' ? 'text-emerald-400' : 'text-rose-400'}`}>
-        <span>{change}</span>
-        {trend === 'up' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+      <div>
+        <h3 className="text-slate-400 text-sm font-medium">{title}</h3>
+        <p className="text-2xl font-bold mt-1">{value}</p>
       </div>
-    </div>
-    <div>
-      <h3 className="text-slate-400 text-sm font-medium">{title}</h3>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-    </div>
-  </div>
-);
+    </>
+  );
+  return to ? (
+    <Link to={to} className="glass-card p-6 flex flex-col space-y-4 group cursor-pointer hover:border-primary-500/40 hover:bg-white/[0.03] transition-colors">
+      {body}
+    </Link>
+  ) : (
+    <div className="glass-card p-6 flex flex-col space-y-4">{body}</div>
+  );
+};
 
 const SuggestionBadge = ({ accountCode, label, confidence }: { accountCode: string, label: string, confidence: number }) => (
   <div className="flex items-center space-x-2 bg-primary-500/5 border border-primary-500/20 rounded-lg px-2 py-1 group/suggestion cursor-help" title={`Luottamusarvo: ${(confidence * 100).toFixed(0)}%`}>
@@ -132,6 +146,7 @@ const Dashboard = () => {
     mutationFn: (file: File) => uploadStatement(file, selectedCompany.id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
+      queryClient.invalidateQueries({ queryKey: ['accStats'] });
       alert(`${t('bank.success')} ${data.results.matchedInvoices}`);
     },
     onError: () => alert(t('bank.error')),
@@ -202,31 +217,29 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Yhtiöt & Osakkaat" 
-          value={`${companyStats?.totalCompanies || 0} / ${companyStats?.totalShareholders || 0}`} 
-          change="+1" 
-          trend="up" 
-          icon={Users} 
+          value={`${companyStats?.totalCompanies || 0} / ${companyStats?.totalShareholders || 0}`}
+          icon={Users}
+          to="/companies"
+          hint="Avaa"
         />
-        <StatCard 
-          title="Automaatioaste" 
-          value={`${accStats?.automationRate?.toFixed(1) || 0}%`} 
-          change="+5.4%" 
-          trend="up" 
-          icon={Activity} 
+        <StatCard
+          title="Automaatioaste"
+          value={`${accStats?.automationRate?.toFixed(1) || 0}%`}
+          icon={Activity}
         />
-        <StatCard 
-          title="Käsittelemättömät" 
-          value={accStats?.pendingEntries?.toString() || "0"} 
-          change="-2" 
-          trend="up" 
-          icon={AlertCircle} 
+        <StatCard
+          title="Käsittelemättömät"
+          value={accStats?.pendingEntries?.toString() || "0"}
+          icon={AlertCircle}
+          to="/pending"
+          hint="Käsittele"
         />
-        <StatCard 
-          title="Vahvistetut" 
-          value={accStats?.postedEntries?.toString() || "0"} 
-          change="+4" 
-          trend="up" 
-          icon={FileCheck} 
+        <StatCard
+          title="Vahvistetut"
+          value={accStats?.postedEntries?.toString() || "0"}
+          icon={FileCheck}
+          to="/ledger"
+          hint="Pääkirja"
         />
       </div>
 
@@ -236,7 +249,7 @@ const Dashboard = () => {
         <div className="lg:col-span-2 glass-card overflow-hidden">
           <div className="p-6 border-b border-white/5 flex items-center justify-between">
             <h3 className="font-semibold text-lg">Viimeisimmät tositteet</h3>
-            <button className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors">Katso kaikki</button>
+            <Link to="/ledger" className="text-sm text-primary-400 hover:text-primary-300 font-medium transition-colors">Katso kaikki</Link>
           </div>
           <div className="p-0">
             <table className="w-full text-left">
@@ -306,11 +319,12 @@ const Dashboard = () => {
             <h3 className="font-semibold text-lg">Järjestelmän tila</h3>
           </div>
           <div className="p-6 space-y-6">
-            <ServiceStatus name="User Service" url="http://localhost:3001/api/v1" />
-            <ServiceStatus name="Accounting Service" url="http://localhost:3002/api/v1" />
-            <ServiceStatus name="Voucher Service" url="http://localhost:3003/api/v1" />
-            <ServiceStatus name="Bank Service" url="http://localhost:3005/api/v1" />
-            <ServiceStatus name="ML Service" url="http://localhost:8001/api/v1" />
+            {/* Palveluiden /health on juuressa, ei /api/v1-polun alla */}
+            <ServiceStatus name="User Service" url="http://localhost:3001" />
+            <ServiceStatus name="Accounting Service" url="http://localhost:3002" />
+            <ServiceStatus name="Voucher Service" url="http://localhost:3003" />
+            <ServiceStatus name="Bank Service" url="http://localhost:3005" />
+            <ServiceStatus name="ML Service" url="http://localhost:8001" />
 
             <div className="pt-4">
               <h4 className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">Kafka Tapahtumakuorma</h4>

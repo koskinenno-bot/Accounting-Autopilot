@@ -45,7 +45,7 @@ export const createShareholder = async (req: AuthRequest, res: Response) => {
         shares: {
           create: (Array.isArray(shares) ? shares : []).map((s: any) => ({
             shareNumbers: s.shareNumbers,
-            apartment: s.apartment, // { number, sqm, rooms, floor, shareOfCommonExpenses }
+            apartment: s.apartment, // { number, squareMeters, rooms, floor, shareOfCommonExpenses } (vastikelaskutus lukee squareMeters)
             ownershipStart: new Date(s.ownershipStart || Date.now()),
             ownershipPercentage: s.ownershipPercentage || 1.0,
           }))

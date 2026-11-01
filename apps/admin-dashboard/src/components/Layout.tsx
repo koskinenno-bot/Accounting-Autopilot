@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, Users, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
@@ -29,18 +29,28 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const { t } = useTranslation();
   const location = useLocation();
 
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    // replace: selaimen takaisin-nappi ei palaa suojatulle sivulle
+    navigate('/login', { replace: true });
+  };
+
+  const displayName = user?.email?.split('@')[0] || '';
+  const initials = (displayName.slice(0, 2) || '?').toUpperCase();
 
   const menuItems = [
     { icon: LayoutDashboard, label: t('dashboard.title'), path: '/', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
-    { icon: Users, label: t('totalCompanies'), path: '/companies', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { icon: FileText, label: t('reports.incomeStatement'), path: '/reports', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
+    { icon: Users, label: t('nav.companies'), path: '/companies', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { icon: FileText, label: t('nav.financialStatements'), path: '/reports', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
     { icon: ArrowRightLeft, label: t('reports.vastikelaskelma'), path: '/reports/vastike', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
     { icon: CreditCard, label: t('invoices.title'), path: '/billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'ACCOUNTANT'] },
     { icon: Shield, label: t('documents.title'), path: '/documents', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
     { icon: Mail, label: t('notifications.title'), path: '/notifications', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER'] },
     { icon: History, label: t('audit.title'), path: '/audit', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ACCOUNTANT'] },
-    { icon: Settings, label: 'Asetukset', path: '/settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
+    { icon: Settings, label: t('nav.settings'), path: '/settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
   ].filter(item => item.roles.includes(user?.role || 'VIEWER'));
 
   return (
@@ -65,7 +75,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         </nav>
 
         <div className="pt-6 border-t border-white/5">
-          <button className="flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 w-full">
+          <button type="button" onClick={handleLogout} className="flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 w-full">
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Kirjaudu ulos</span>
           </button>
@@ -77,12 +87,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         {/* Header */}
         <header className="h-20 border-b border-white/5 px-8 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-semibold">Tervetuloa takaisin, <span className="text-primary-400">Admin</span></h1>
+            <h1 className="text-xl font-semibold">Tervetuloa takaisin{displayName && <>, <span className="text-primary-400">{displayName}</span></>}</h1>
           </div>
           <div className="flex items-center space-x-4">
             <LanguageSwitcher />
             <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full border-2 border-slate-950 bg-slate-800 flex items-center justify-center text-xs">OK</div>
+              <div className="w-8 h-8 rounded-full border-2 border-slate-950 bg-slate-800 flex items-center justify-center text-xs" title={user?.email}>{initials}</div>
             </div>
           </div>
         </header>

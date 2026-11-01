@@ -74,7 +74,8 @@ export const createInvoice = async (req: Request, res: Response) => {
         companyId: invoice.companyId,
         amount: Number(invoice.totalAmount), // Decimal -> number, muuten JSON:ssa merkkijono
         referenceNumber: invoice.referenceNumber || '',
-        dueDate: invoice.dueDate.toISOString()
+        dueDate: invoice.dueDate.toISOString(),
+        issueDate: invoice.issueDate.toISOString()
       }
     });
 
@@ -153,9 +154,59 @@ export const getFinvoiceXml = async (req: Request, res: Response) => {
   }
 };
 
+// Sallitut tilasiirtymät. PAID ja CANCELLED ovat lopputiloja (maksettua laskua ei avata uudelleen täältä).
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ['SENT', 'CANCELLED'],
+  SENT: ['PAID', 'OVERDUE', 'CANCELLED'],
+  OVERDUE: ['PAID', 'CANCELLED'],
+  PAID: [],
+  CANCELLED: [],
+};
+
+/**
+ * Laskun tilan muutos käsin, esim. viitteetön suoritus kohdistetaan laskuun.
+ * Kirjanpitoon ei synny tästä uutta vientiä: kohdistettu pankkivienti kuittaa saatavan.
+ */
+export const updateInvoiceStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status || !(status in ALLOWED_TRANSITIONS)) {
+      return res.status(400).json({ error: `Virheellinen tila: ${status}` });
+    }
+
+    const invoice = await prisma.invoice.findUnique({ where: { id } });
+    if (!invoice) return res.status(404).json({ error: 'Laskua ei löydy' });
+    if (!ALLOWED_TRANSITIONS[invoice.status].includes(status)) {
+      return res.status(409).json({ error: `Laskun tilaa ei voi muuttaa: ${invoice.status} -> ${status}` });
+    }
+
+    const updated = await prisma.invoice.update({ where: { id }, data: { status } });
+
+    await publishInvoiceStatusChanged({
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+      data: { invoiceId: updated.id, companyId: updated.companyId, status: updated.status },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update invoice status error:', error);
+    res.status(500).json({ error: 'Laskun tilan päivitys epäonnistui' });
+  }
+};
+
 export const generateBulkMaintenanceFees = async (req: Request, res: Response) => {
   try {
-    const { companyId, unitPrice, dueDate, description } = req.body;
+    const { companyId, unitPrice, dueDate, description, issueDate } = req.body;
+    if (!companyId || !(parseFloat(unitPrice) > 0) || Number.isNaN(new Date(dueDate).getTime())) {
+      return res.status(400).json({ error: 'companyId, positiivinen unitPrice ja kelvollinen dueDate ovat pakollisia' });
+    }
+    // Valinnainen laskupäivä (esim. kuukauden vastikeajo tehdään etukäteen); oletus tänään
+    const issued = issueDate ? new Date(issueDate) : new Date();
+    if (Number.isNaN(issued.getTime())) {
+      return res.status(400).json({ error: 'Virheellinen issueDate' });
+    }
 
     // 1. Fetch shareholders from User Service
     // Välitetään käyttäjän oma tunniste, jolloin user-service tarkistaa myös yhtiön käyttöoikeuden.
@@ -185,6 +236,7 @@ export const generateBulkMaintenanceFees = async (req: Request, res: Response) =
             referenceNumber,
             recipientName: sh.companyName || `${sh.firstName} ${sh.lastName}`,
             recipientEmail: sh.email,
+            issueDate: issued,
             dueDate: new Date(dueDate),
             totalAmount,
             status: 'SENT',
@@ -209,7 +261,8 @@ export const generateBulkMaintenanceFees = async (req: Request, res: Response) =
             companyId,
             amount: totalAmount,
             referenceNumber: invoice.referenceNumber || '',
-            dueDate: invoice.dueDate.toISOString()
+            dueDate: invoice.dueDate.toISOString(),
+            issueDate: invoice.issueDate.toISOString()
           }
         });
 

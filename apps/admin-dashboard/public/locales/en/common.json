@@ -13,6 +13,35 @@
     "creatingAccount": "Create New Account",
     "error": "Login failed. Please check your email and password."
   },
+  "nav": {
+    "companies": "Companies",
+    "financialStatements": "Income statement & balance sheet",
+    "settings": "Settings"
+  },
+  "pending": {
+    "title": "Unprocessed entries",
+    "subtitle": "Drafts created by automation, waiting for review and approval.",
+    "empty": "All entries have been processed.",
+    "account": "Account",
+    "debit": "Debit",
+    "credit": "Credit",
+    "save": "Save accounts",
+    "approve": "Approve",
+    "delete": "Delete draft",
+    "deleteConfirm": "Delete draft {{voucher}}? This cannot be undone.",
+    "matchInvoice": "Match to invoice",
+    "matchHint": "Pick the open invoice this payment settles. The entry is booked against receivables, approved and the invoice is marked paid.",
+    "noOpenInvoices": "The company has no open invoices.",
+    "sameAmount": "same amount",
+    "suspenseBlock": "The entry still uses account 1990 Suspense. Choose the correct account or match the payment to an invoice before approving.",
+    "matched": "Payment matched to invoice {{invoice}}, invoice marked paid.",
+    "approved": "Entry {{voucher}} approved."
+  },
+  "ledger": {
+    "title": "General ledger",
+    "subtitle": "Posted and locked entries with their lines.",
+    "empty": "No posted entries."
+  },
   "dashboard": {
     "title": "Dashboard",
     "automationRate": "Automation Rate",

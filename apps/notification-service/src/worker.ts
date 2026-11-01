@@ -5,7 +5,8 @@ import ejs from 'ejs';
 import path from 'path';
 
 const prisma = new PrismaClient();
-const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379');
+// BullMQ Worker vaatii maxRetriesPerRequest: null (blokkaavat komennot)
+const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: null });
 
 const worker = new Worker('email-queue', async (job: Job) => {
   const { notificationId, recipient, subject, template, data } = job.data;
@@ -15,7 +16,7 @@ const worker = new Worker('email-queue', async (job: Job) => {
   try {
     // 1. Render Template
     const templatePath = path.join(__dirname, `../templates/${template}.ejs`);
-    const content = await ejs.renderFile(templatePath, data || {});
+    const content = String(await ejs.renderFile(templatePath, data || {}));
 
     // 2. Mock Dispatch (In real prod, use Nodemailer here)
     console.log('--- BACKGROUND EMAIL DISPATCH ---');

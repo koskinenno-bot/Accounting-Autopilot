@@ -25,6 +25,11 @@ export const createInvoice = async (invoiceData: any) => {
   return data;
 };
 
+export const updateInvoiceStatus = async (id: string, status: 'SENT' | 'OVERDUE' | 'PAID' | 'CANCELLED') => {
+  const { data } = await invoicesApi.patch(`/invoices/${id}/status`, { status });
+  return data;
+};
+
 export const getFinvoiceXmlUrl = (invoiceId: string) => {
   return `${INVOICING_SERVICE_URL}/invoices/${invoiceId}/xml`;
 };

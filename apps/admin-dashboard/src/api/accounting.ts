@@ -20,6 +20,39 @@ export const getLedger = async (companyId: string) => {
   return data;
 };
 
+/** Viennit tilan mukaan, esim. 'DRAFT' tai 'POSTED,LOCKED'. */
+export const getLedgerByStatus = async (companyId: string, status: string) => {
+  const { data } = await accountingApi.get('/accounting/ledger', { params: { companyId, status } });
+  return data;
+};
+
+export const getAccounts = async (companyId: string) => {
+  const { data } = await accountingApi.get('/accounting/accounts', { params: { companyId } });
+  return data;
+};
+
+export interface EntryLineInput {
+  accountNumber: string;
+  debit: number | string;
+  credit: number | string;
+  description?: string;
+}
+
+/** Luonnoksen rivien korvaus (vain DRAFT). */
+export const updateEntryLines = async (id: string, lines: EntryLineInput[]) => {
+  const { data } = await accountingApi.patch(`/accounting/entries/${id}`, { lines });
+  return data;
+};
+
+export const postEntry = async (id: string) => {
+  const { data } = await accountingApi.post(`/accounting/entries/${id}/post`);
+  return data;
+};
+
+export const deleteEntry = async (id: string) => {
+  await accountingApi.delete(`/accounting/entries/${id}`);
+};
+
 export const createEntry = async (entryData: any) => {
   const { data } = await accountingApi.post('/accounting/entries', entryData);
   return data;

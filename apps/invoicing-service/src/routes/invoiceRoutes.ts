@@ -9,6 +9,7 @@ router.use(requireAuth);
 router.post('/', invoiceController.createInvoice as any);
 router.get('/', invoiceController.getInvoices as any);
 router.get('/:id/xml', invoiceController.getFinvoiceXml as any);
+router.patch('/:id/status', invoiceController.updateInvoiceStatus as any);
 router.post('/bulk-maintenance-fees', invoiceController.generateBulkMaintenanceFees as any);
 
 export default router;

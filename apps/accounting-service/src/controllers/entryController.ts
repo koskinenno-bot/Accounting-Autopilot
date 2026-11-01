@@ -99,7 +99,7 @@ export const updateEntry = async (req: Request, res: Response) => {
 
     const existing = await prisma.accountingEntry.findUnique({
       where: { id },
-      include: { fiscalYear: true }
+      include: { fiscalYear: true, lines: true } // rivit audit-lokin from-tilaan
     });
 
     if (!existing) return res.status(404).json({ error: 'Vientiä ei löydy' });
@@ -109,14 +109,34 @@ export const updateEntry = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Kirjausta ei voi muuttaa: vain luonnosta voi muokata, kirjattu vienti oikaistaan korjausviennillä (KPL 2:7 §)' });
     }
 
-    const updated = await prisma.accountingEntry.update({
-      where: { id },
-      data: {
-        description,
-        version: { increment: 1 },
-        // If lines are updated, we should ideally handle balancing again
-      },
-      include: { lines: true }
+    // Luonnoksen rivit voi korvata (esim. selvitettävien erien 1990 rivi oikealle tilille).
+    if (lines !== undefined) {
+      const lineError = validateLines(lines);
+      if (lineError) return res.status(400).json({ error: lineError });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (lines !== undefined) {
+        await tx.accountingLine.deleteMany({ where: { entryId: id } });
+        await tx.accountingLine.createMany({
+          data: lines.map((line: any) => ({
+            entryId: id,
+            companyId: existing.companyId,
+            accountNumber: String(line.accountNumber),
+            debit: toCents(line.debit) / 100,
+            credit: toCents(line.credit) / 100,
+            description: line.description,
+          })),
+        });
+      }
+      return tx.accountingEntry.update({
+        where: { id },
+        data: {
+          ...(description !== undefined ? { description } : {}),
+          version: { increment: 1 },
+        },
+        include: { lines: true }
+      });
     });
 
     // Audit Log
@@ -131,7 +151,11 @@ export const updateEntry = async (req: Request, res: Response) => {
     }, { headers: serviceHeaders() }).catch((err) => console.error('Audit log error:', err.message));
 
     return res.json(updated);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2003') {
+      return res.status(400).json({ error: 'Vähintään yksi tilinumero puuttuu yhtiön tilikartasta' });
+    }
+    console.error('Entry update error:', error);
     return res.status(500).json({ error: 'Muokkaus epäonnistui' });
   }
 };

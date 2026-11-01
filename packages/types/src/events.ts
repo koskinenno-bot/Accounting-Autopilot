@@ -54,6 +54,8 @@ export interface BankTransaction {
   currency: string;
   creditDebit: 'CRDT' | 'DBIT';
   referenceNumber?: string;
+  /** Saapuvassa maksussa maksaja, lähtevässä saaja. */
+  counterpartyName?: string;
   payerName?: string;
   payerIban?: string;
   remittanceInfo?: string;
@@ -69,6 +71,8 @@ export interface InvoiceCreatedEvent {
     amount: number;
     referenceNumber: string;
     dueDate: string;
+    /** Laskun päiväys = kirjauspäivä. Puuttuessa kirjataan käsittelypäivälle. */
+    issueDate?: string;
   };
 }
 
@@ -78,7 +82,7 @@ export interface InvoiceStatusChangedEvent {
   data: {
     invoiceId: string;
     companyId: string;
-    status: 'DRAFT' | 'SENT' | 'PAID' | 'CANCELLED';
+    status: 'DRAFT' | 'SENT' | 'OVERDUE' | 'PAID' | 'CANCELLED';
   };
 }
 

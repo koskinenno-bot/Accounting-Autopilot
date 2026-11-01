@@ -4,7 +4,7 @@ import { ACCOUNTS } from '../accounts';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
 
 export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
-  const { invoiceId, companyId, amount, referenceNumber, dueDate } = event.data;
+  const { invoiceId, companyId, amount, referenceNumber, dueDate, issueDate } = event.data;
 
   console.log(`Creating accounting entry for new invoice: ${invoiceId}`);
 
@@ -18,7 +18,9 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
       return;
     }
 
-    const entryDate = new Date();
+    // Myyntisaaminen syntyy laskun päiväyksellä (ei käsittelyhetkellä), muuten
+    // aiemmin päivätty pankkisuoritus kuittaisi saatavaa ennen sen syntymistä.
+    const entryDate = issueDate ? new Date(issueDate) : new Date();
     await prisma.accountingEntry.create({
       data: {
         companyId,
