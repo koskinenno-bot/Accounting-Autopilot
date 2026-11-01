@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../prisma/client';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 

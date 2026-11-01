@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../prisma/client';
 import * as referenceService from './referenceService';
 
 const FIRST_INVOICE_NUMBER = 1001;

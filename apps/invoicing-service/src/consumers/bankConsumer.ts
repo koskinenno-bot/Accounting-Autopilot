@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../prisma/client';
 import { BankStatementReceivedEvent } from '@ai-accountant/types';
 import { publishInvoiceStatusChanged } from '../utils/kafka';
 import { v4 as uuidv4 } from 'uuid';

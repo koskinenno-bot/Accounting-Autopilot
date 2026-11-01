@@ -5,6 +5,8 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  // Oma client per palvelu: muuten kaikki palvelut generoivat saman node_modules/@prisma/clientin ja viimeisin ylikirjoittaa muut
+  output   = "./client"
 }
 
 enum DocumentType {

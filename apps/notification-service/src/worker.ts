@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../prisma/client';
 import ejs from 'ejs';
 import path from 'path';
 

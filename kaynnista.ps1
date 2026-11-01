@@ -1,0 +1,76 @@
+# AI ACCOUNT_V3 - koko kehitysympäristön käynnistys yhdellä komennolla.
+# Käyttö (PowerShell, projektikansiossa):
+#   powershell -ExecutionPolicy Bypass -File .\kaynnista.ps1
+# Valinnaiset: -SkipInstall (ohita npm/pip install), -SkipDb (ohita prisma-vaiheet)
+param([switch]$SkipInstall, [switch]$SkipDb)
+
+$ErrorActionPreference = 'Stop'
+$root = $PSScriptRoot
+Set-Location $root
+
+function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
+
+# 1. Docker
+Step 'Tarkistetaan Docker'
+try { docker info *> $null } catch { }
+if ($LASTEXITCODE -ne 0) {
+  Write-Host 'Docker ei ole käynnissä. Käynnistä Docker Desktop ja aja skripti uudelleen.' -ForegroundColor Red
+  exit 1
+}
+Step 'Käynnistetään Postgres, Kafka, Redis, MinIO ja Kong'
+docker compose up -d
+if ($LASTEXITCODE -ne 0) { throw 'docker compose up epäonnistui' }
+
+Write-Host 'Odotetaan Postgresia...'
+for ($i = 0; $i -lt 30; $i++) {
+  docker exec ai-accountant-postgres pg_isready -U admin *> $null
+  if ($LASTEXITCODE -eq 0) { break }
+  Start-Sleep -Seconds 2
+}
+# init-db.sh ajetaan vain uudelle volyymille: varmistetaan kaikki kannat
+foreach ($db in 'user_service','accounting_service','voucher_service','billing_service','document_service','common_audit_log','notification_service') {
+  $exists = docker exec ai-accountant-postgres psql -U admin -d main_db -tAc "SELECT 1 FROM pg_database WHERE datname='$db'"
+  if ($exists -ne '1') {
+    docker exec ai-accountant-postgres psql -U admin -d main_db -c "CREATE DATABASE $db;" | Out-Null
+    Write-Host "  luotiin tietokanta $db"
+  }
+}
+
+# 2. Riippuvuudet
+if (-not $SkipInstall) {
+  Step 'npm install'
+  npm install
+  if ($LASTEXITCODE -ne 0) { throw 'npm install epäonnistui' }
+  Step 'Python-riippuvuudet (reporting-service)'
+  python -m pip install -q fastapi uvicorn httpx python-dotenv PyJWT
+}
+
+# 3. Prisma: client + skeema tietokantaan
+$prismaServices = 'user-service','accounting-service','audit-service','invoicing-service','voucher-service','document-service','notification-service'
+if (-not $SkipDb) {
+  foreach ($svc in $prismaServices) {
+    Step "Prisma: $svc"
+    Push-Location "apps/$svc"
+    npx prisma generate
+    # db push = kehityksen skeemasynkronointi; pysähtyy (ei poista dataa) jos muutos vaatisi tietojen poistoa
+    npx prisma db push --skip-generate
+    if ($LASTEXITCODE -ne 0) { Write-Host "  VAROITUS: $svc skeeman päivitys epäonnistui, katso virhe yltä" -ForegroundColor Yellow }
+    Pop-Location
+  }
+}
+
+# 4. Palvelut omiin ikkunoihin
+Step 'Käynnistetään palvelut omiin ikkunoihin'
+$node = 'user-service','accounting-service','audit-service','invoicing-service','bank-service','voucher-service','document-service','notification-service'
+foreach ($svc in $node) {
+  Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='$svc'; Set-Location '$root\apps\$svc'; npm run dev"
+}
+Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='reporting-service'; Set-Location '$root\apps\reporting-service\src'; python main.py"
+Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='admin-dashboard'; Set-Location '$root\apps\admin-dashboard'; npm run dev"
+
+Step 'Odotetaan dashboardia'
+for ($i = 0; $i -lt 30; $i++) {
+  try { Invoke-WebRequest -UseBasicParsing http://localhost:5173 -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep -Seconds 2 }
+}
+Start-Process 'http://localhost:5173'
+Write-Host "`nValmis. Dashboard: http://localhost:5173  (palvelut näkyvät omissa ikkunoissaan; sulje ikkuna pysäyttääksesi palvelun)" -ForegroundColor Green

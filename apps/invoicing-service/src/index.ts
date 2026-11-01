@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../prisma/client';
 import invoiceRoutes from './routes/invoiceRoutes';
 import { connectKafka, disconnectKafka } from './utils/kafka';
 
