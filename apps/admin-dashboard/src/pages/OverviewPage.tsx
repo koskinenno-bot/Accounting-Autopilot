@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { AlertCircle, Building2, CheckCircle2, Search } from 'lucide-react';
 import { useCompany } from '../hooks/useCompany';
 import type { Company } from '../hooks/useCompany';
-import { getOverview } from '../api/accounting';
+import { getOverview, getTimeSummary } from '../api/accounting';
 import type { CompanyOverview } from '../api/accounting';
 import { COMPANY_ROLE_LABELS } from '../api/organizations';
 
@@ -42,6 +42,13 @@ const OverviewPage = () => {
     enabled: ids.length > 0,
     refetchInterval: 60_000,
   });
+  const { data: time } = useQuery({
+    queryKey: ['timeSummary', ids],
+    queryFn: () => getTimeSummary(ids),
+    enabled: ids.length > 0,
+    refetchInterval: 5 * 60_000,
+  });
+  const timeById = useMemo(() => new Map((time ?? []).map((t) => [t.companyId, t])), [time]);
 
   const rows = useMemo(() => {
     const byId = new Map((overview ?? []).map((o) => [o.companyId, o]));
@@ -144,6 +151,7 @@ const OverviewPage = () => {
               <th className="p-4 font-medium">Tehtävää</th>
               <th className="p-4 font-medium">Viimeisin pankkitapahtuma</th>
               <th className="p-4 font-medium">Avoin tilikausi</th>
+              <th className="p-4 font-medium" title="Ihmistyö viimeisen 12 kk aikana: automaattisesti mitattu ja käsin kirjattu. Tavoite alle 10 h vuodessa.">Työaika 12 kk</th>
               <th className="p-4 font-medium">Roolisi</th>
               <th className="p-4" />
             </tr>
@@ -174,6 +182,17 @@ const OverviewPage = () => {
                 <td className="p-4 text-slate-300">
                   {data?.openFiscalYear ? `${fmtDate(data.openFiscalYear.startDate)}–${fmtDate(data.openFiscalYear.endDate)}` : '–'}
                 </td>
+                <td className="p-4 whitespace-nowrap">{(() => {
+                  const tm = timeById.get(company.id);
+                  if (!tm) return <span className="text-slate-500">–</span>;
+                  const color = tm.status === 'over' ? 'text-red-400' : tm.status === 'warning' ? 'text-amber-300' : 'text-slate-300';
+                  return (
+                    <span className={color} title={tm.projectedYearHours != null ? `Ennuste koko vuodelle ${tm.projectedYearHours.toLocaleString('fi-FI')} h (tavoite ${tm.targetHours} h)` : `Tavoite ${tm.targetHours} h vuodessa`}>
+                      {(tm.minutesYear / 60).toLocaleString('fi-FI', { maximumFractionDigits: 1 })} h
+                      <span className="text-slate-500"> / {tm.targetHours} h</span>
+                    </span>
+                  );
+                })()}</td>
                 <td className="p-4 text-slate-400">{COMPANY_ROLE_LABELS[company.myRole] ?? company.myRole}</td>
                 <td className="p-4 text-right whitespace-nowrap">
                   {data && data.pending > 0 && (company.myRole === 'MANAGER' || company.myRole === 'ASSISTANT') && (

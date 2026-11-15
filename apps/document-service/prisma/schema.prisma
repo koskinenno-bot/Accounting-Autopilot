@@ -24,7 +24,9 @@ model Document {
   type          DocumentType   @default(OTHER)
   isArchived    Boolean        @default(false)
   archivedAt    DateTime?
-  retentionUntil DateTime?      // Legal archiving requirement (e.g., 10 years)
+  retentionUntil DateTime?      // Säilytysaika (KPL 2:10 §: tilinpäätös ja kirjanpitokirjat 10 v tilikauden päättymisestä)
+  // Automaattisen arkistoinnin tunniste, esim. "closing:<tilikausi>:package" (sama aineisto arkistoidaan vain kerran)
+  sourceKey     String?
   
   versions      DocumentVersion[]
   createdAt     DateTime       @default(now())
@@ -32,6 +34,7 @@ model Document {
 
   @@index([companyId])
   @@index([type])
+  @@unique([companyId, sourceKey])
 }
 
 model DocumentVersion {

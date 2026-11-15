@@ -26,6 +26,8 @@ const company = requireCompanyAccess({ required: true });
 // :id-reitit tarkistavat dokumentin yhtiön käsittelijässä
 router.post('/upload', upload.single('file'), company, documentController.uploadDocument as any);
 router.get('/', company, documentController.getDocuments as any);
+router.post('/closing-archive', documentController.archiveClosing as any);
+router.get('/:id/download', documentController.downloadDocument as any);
 router.post('/:id/archive', documentController.archiveDocument as any);
 router.delete('/:id', documentController.deleteDocument as any);
 

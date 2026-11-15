@@ -33,13 +33,14 @@ const dispatch = async (job: EmailJob) => {
 
 export const sendEmail = async (req: Request, res: Response) => {
   try {
-    const { companyId, recipient, subject, template, data } = req.body ?? {};
+    const { companyId, recipient, subject, template, data, replyTo } = req.body ?? {};
+    const reply = typeof replyTo === 'string' && EMAIL.test(replyTo.trim()) ? replyTo.trim() : undefined;
     if (typeof recipient !== 'string' || !EMAIL.test(recipient.trim())) return res.status(400).json({ error: 'Virheellinen vastaanottaja' });
     if (typeof subject !== 'string' || !subject.trim()) return res.status(400).json({ error: 'Otsikko puuttuu' });
     const notification = await prisma.notification.create({
       data: { companyId: String(companyId ?? 'system'), recipient: recipient.trim(), subject: subject.trim().slice(0, 200), content: `Pohja: ${template ?? 'teksti'}`, status: 'PENDING' },
     });
-    const job: EmailJob = { notificationId: notification.id, recipient: recipient.trim(), subject: subject.trim().slice(0, 200), template, data };
+    const job: EmailJob = { notificationId: notification.id, recipient: recipient.trim(), subject: subject.trim().slice(0, 200), template, data, replyTo: reply };
     let how: string;
     try {
       how = await dispatch(job);

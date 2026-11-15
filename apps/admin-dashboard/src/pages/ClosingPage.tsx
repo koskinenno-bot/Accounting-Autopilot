@@ -42,7 +42,7 @@ const ClosingPage = () => {
   const [assetForm, setAssetForm] = useState({ name: 'Rakennus', accountNumber: '1010', acquisitionDate: '', acquisitionCost: '', priorDepreciation: '0', method: 'DECLINING', rate: '4', usefulLifeYears: '', manualAmount: '' });
   const [accrualForm, setAccrualForm] = useState({ kind: 'accrued_expense', accountNumber: '', amount: '', description: '' });
 
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, canWrite, canManage } = useCompany();
   const companyId: string | undefined = selectedCompany?.id;
   const enabled = !!fyId;
   const checklist = useQuery({ queryKey: ['closing', fyId], queryFn: () => getClosingChecklist(fyId!), enabled });
@@ -53,6 +53,8 @@ const ClosingPage = () => {
 
   const fy = checklist.data?.fiscalYear;
   const closed = fy?.status === 'CLOSED';
+  // Hallitus ja tarkastaja näkevät tilanteen, mutta eivät tee kirjauksia (palvelin estää joka tapauksessa)
+  const editable = !closed && canWrite;
   const items: any[] = checklist.data?.items || [];
   const blockingFailed = items.some((i) => i.blocking && !i.ok);
   const warnings = items.filter((i) => !i.blocking && !i.ok);
@@ -106,6 +108,8 @@ const ClosingPage = () => {
         </ul>
         {closed ? (
           <div className="flex items-center gap-2 text-slate-300 text-sm"><Lock className="w-4 h-4" />Tilikausi on suljettu ja viennit lukittu.</div>
+        ) : !canManage ? (
+          <p className="text-sm text-slate-400">Tilikauden sulkee isännöitsijä.</p>
         ) : (
           <div className="flex flex-wrap items-center gap-4 pt-2">
             {warnings.length > 0 && (
@@ -133,7 +137,7 @@ const ClosingPage = () => {
         )}
       </Card>
 
-      {!closed && (
+      {!closed && canManage && (
         <Card title="Avaussaldot">
           {notice('opening')}
           {openingDone ? (
@@ -177,14 +181,14 @@ const ClosingPage = () => {
             {d.postedEntryId ? <span className="text-emerald-300">Poisto kirjattu</span> : (
               <label className="flex items-center gap-2 text-slate-400">
                 Poisto €
-                <input className={`${input} w-36 text-right text-slate-100`} disabled={closed} value={depAmounts[d.asset.id] ?? String(d.amount)}
+                <input className={`${input} w-36 text-right text-slate-100`} disabled={!editable} value={depAmounts[d.asset.id] ?? String(d.amount)}
                   onChange={(e) => setDepAmounts({ ...depAmounts, [d.asset.id]: e.target.value })} />
               </label>
             )}
           </div>
         ))}
         {notice('dep')}
-        {!closed && pendingDep.length > 0 && (
+        {editable && pendingDep.length > 0 && (
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
@@ -203,7 +207,7 @@ const ClosingPage = () => {
             <span className="text-xs text-slate-400">Summaa voi muuttaa ennen kirjausta. Poisto kirjataan tilikauden viimeiselle päivälle.</span>
           </div>
         )}
-        {!closed && (
+        {editable && (
           <details className="text-sm">
             <summary className="cursor-pointer text-primary-400 inline-flex items-center gap-1"><Plus className="w-4 h-4" />Lisää käyttöomaisuutta</summary>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
@@ -239,7 +243,7 @@ const ClosingPage = () => {
             <span>{s.description} · tili {s.accountNumber}</span>
             <span className="flex items-center gap-3">
               <span className="font-semibold">{eur(s.amount)}</span>
-              {!closed && <button type="button" className={button} disabled={run.isPending}
+              {editable && <button type="button" className={button} disabled={run.isPending}
                 onClick={() => act('accrual', async () => { await createAccrual(fyId!, s); return `Jaksotus kirjattu: ${s.description}`; })}>Kirjaa</button>}
             </span>
           </div>
@@ -247,7 +251,7 @@ const ClosingPage = () => {
         {(accruals.data?.entries || []).map((e: any) => (
           <div key={e.id} className="text-sm text-slate-300">✓ {e.voucherNumber}: {e.description} ({eur(e.lines.find((l: any) => Number(l.debit) > 0)?.debit || 0)})</div>
         ))}
-        {!closed && (
+        {editable && (
           <details className="text-sm">
             <summary className="cursor-pointer text-primary-400 inline-flex items-center gap-1"><Plus className="w-4 h-4" />Uusi jaksotus käsin</summary>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">

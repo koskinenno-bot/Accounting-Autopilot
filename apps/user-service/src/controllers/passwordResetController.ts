@@ -5,6 +5,8 @@ import { prisma } from '../db';
 import {
   MAX_RESETS_PER_HOUR, RESET_TTL_MS, hashToken, isValidTokenFormat, maskEmail, newResetToken, passwordProblem, resetStatus,
 } from '../passwordReset';
+import { signToken } from '../session';
+import { forgetTokenVersion } from '../middleware/auth';
 
 const APP_URL = (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
 const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3008/api/v1';
@@ -89,12 +91,14 @@ export const confirmReset = async (req: Request, res: Response) => {
     const claimed = await prisma.$transaction(async (tx) => {
       const r = await tx.passwordReset.updateMany({ where: { id: row!.id, usedAt: null }, data: { usedAt: new Date() } });
       if (r.count !== 1) return false;
-      await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+      // Vanhat kirjautumiset mitätöidään ja mahdollinen lukitus poistuu
+      await tx.user.update({ where: { id: user.id }, data: { passwordHash, tokenVersion: { increment: 1 }, failedLogins: 0, lockedUntil: null } });
       // Muut avoimet linkit mitätöidään
       await tx.passwordReset.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
       return true;
     });
     if (!claimed) return res.status(410).json({ error: STATUS_TEXT.used });
+    forgetTokenVersion(user.id);
     return res.json({ message: 'Salasana vaihdettu. Voit nyt kirjautua uudella salasanalla.' });
   } catch (error) {
     console.error('Password reset confirm error:', error);
@@ -114,8 +118,13 @@ export const changePassword = async (req: Request, res: Response) => {
     }
     const problem = passwordProblem(newPassword, user.email);
     if (problem) return res.status(400).json({ error: problem });
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(newPassword, 12) } });
-    return res.json({ message: 'Salasana vaihdettu' });
+    // Muut laitteet kirjataan ulos; tälle laitteelle palautetaan uusi tunniste
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await bcrypt.hash(newPassword, 12), tokenVersion: { increment: 1 } },
+    });
+    forgetTokenVersion(user.id);
+    return res.json({ message: 'Salasana vaihdettu. Muut laitteet kirjattiin ulos.', token: signToken(updated) });
   } catch (error) {
     console.error('Change password error:', error);
     return res.status(500).json({ error: 'Salasanan vaihto epäonnistui' });

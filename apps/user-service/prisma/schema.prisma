@@ -21,6 +21,11 @@ model User {
   mfaEnabled    Boolean   @default(false)
   mfaSecret     String?
   isActive      Boolean   @default(true)
+  // Kasvatetaan salasanan vaihdossa ja "kirjaudu ulos kaikkialta" -toiminnossa: vanhat tunnisteet lakkaavat toimimasta
+  tokenVersion  Int       @default(0)
+  // Kirjautumisyritysten rajoitus (tunnuksen lukitus)
+  failedLogins  Int       @default(0)
+  lockedUntil   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   

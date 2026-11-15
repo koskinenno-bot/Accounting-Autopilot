@@ -11,6 +11,8 @@ import * as migration from '../controllers/migrationController';
 import * as vat from '../controllers/vatController';
 import * as payroll from '../controllers/payrollController';
 import * as bankRecon from '../controllers/bankReconController';
+import * as time from '../controllers/timeController';
+import * as voucherRequests from '../controllers/voucherRequestController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -33,6 +35,15 @@ router.get('/overview', getOverview as any);
 // Poikkeusjono: kaikkien yhtiöiden tehtävät ja niiden jako toimiston sisällä
 router.get('/queue', getQueue as any);
 router.put('/queue/task', updateTask as any);
+// Ajankäyttö yhtiöittäin (tavoite alle 10 h / yhtiö / vuosi)
+router.post('/time/heartbeat', time.heartbeat as any);
+router.get('/time/summary', time.getSummary as any);
+router.get('/time/entries', company, time.listEntries as any);
+router.post('/time/entries', company, time.createEntry as any);
+router.delete('/time/entries/:id', time.deleteEntry as any);
+// Puuttuvat tositteet ja niiden pyyntö sähköpostilla
+router.get('/missing-vouchers', company, voucherRequests.listMissing as any);
+router.post('/missing-vouchers/request', company, voucherRequests.requestMissing as any);
 
 router.get('/fiscal-years', company, entryController.listFiscalYears as any);
 router.post('/fiscal-years', company, entryController.createFiscalYear as any);

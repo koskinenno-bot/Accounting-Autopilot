@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "test": "node --require ts-node/register/transpile-only --test test/*.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.12.1",

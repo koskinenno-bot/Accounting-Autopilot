@@ -8,8 +8,9 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
       POSTGRES_DB: main_db
+    # Tietokannat ja jonot vain tältä koneelta (oletussalasanat eivät saa näkyä lähiverkkoon)
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
@@ -20,7 +21,7 @@ services:
     image: redis:7-alpine
     container_name: ai-accountant-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -31,7 +32,7 @@ services:
     image: bitnamilegacy/kafka:3.5
     container_name: ai-accountant-kafka
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_CFG_PROCESS_ROLES=broker,controller
@@ -52,8 +53,8 @@ services:
     image: bitnamilegacy/minio:2025.7.23
     container_name: ai-accountant-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=password

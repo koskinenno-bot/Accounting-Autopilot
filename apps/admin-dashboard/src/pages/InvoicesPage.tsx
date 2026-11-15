@@ -10,7 +10,7 @@ const InvoicesPage = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, canWrite } = useCompany();
   
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['invoices', selectedCompany?.id],
@@ -33,13 +33,15 @@ const InvoicesPage = () => {
           <h2 className="text-2xl font-bold">{t('invoices.title')}</h2>
           <p className="text-slate-400 mt-1">Hallinnoi ja lähetä vastikelaskuja osakkaille.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="premium-button premium-gradient text-white flex items-center justify-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>{t('invoices.create')}</span>
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="premium-button premium-gradient text-white flex items-center justify-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>{t('invoices.create')}</span>
+          </button>
+        )}
       </div>
 
       <div className="glass-card overflow-hidden">

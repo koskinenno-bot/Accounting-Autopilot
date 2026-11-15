@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { File, Upload, Lock, Trash2, Shield, Download, Plus } from 'lucide-react';
-import { getDocuments, uploadDocument, archiveDocument, deleteDocument } from '../api/documents';
+import { getDocuments, uploadDocument, archiveDocument, deleteDocument, openDocument } from '../api/documents';
 import { useCompany } from '../hooks/useCompany';
 
 const DocumentsPage = () => {
@@ -12,7 +12,7 @@ const DocumentsPage = () => {
   const [uploadData, setUploadData] = useState({ name: '', type: 'OTHER' });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, canWrite } = useCompany();
   
   const { data: documents, isLoading } = useQuery({
     queryKey: ['documents', selectedCompany?.id],
@@ -51,13 +51,15 @@ const DocumentsPage = () => {
           <h2 className="text-2xl font-bold">{t('documents.title')}</h2>
           <p className="text-slate-400 mt-1">Hallinnoi ja arkistoi taloyhtiön virallisia dokumentteja.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="premium-button premium-gradient text-white flex items-center justify-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>{t('documents.upload')}</span>
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="premium-button premium-gradient text-white flex items-center justify-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>{t('documents.upload')}</span>
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -80,7 +82,7 @@ const DocumentsPage = () => {
                       <div className="p-2 text-emerald-500 bg-emerald-500/10 rounded-lg" title={t('documents.archived')}>
                         <Lock className="w-4 h-4" />
                       </div>
-                    ) : (
+                    ) : canWrite && (
                       <>
                         <button 
                           onClick={() => archiveMutation.mutate(doc.id)}
@@ -106,6 +108,7 @@ const DocumentsPage = () => {
                     <span className="text-xs font-semibold text-slate-500 uppercase">{doc.type}</span>
                     <span className="text-slate-700">•</span>
                     <span className="text-xs text-slate-500">{t('documents.version')} {doc.versions[0]?.version}</span>
+                    {doc.retentionUntil && <><span className="text-slate-700">•</span><span className="text-xs text-emerald-400/80">Säilytys {new Date(doc.retentionUntil).toLocaleDateString('fi-FI')} asti</span></>}
                   </div>
                 </div>
               </div>
@@ -113,7 +116,8 @@ const DocumentsPage = () => {
                 <span className="text-[10px] text-slate-500 font-mono">
                   {new Date(doc.createdAt).toLocaleDateString('fi-FI')}
                 </span>
-                <button className="text-primary-400 hover:text-primary-300 font-semibold text-xs flex items-center space-x-1">
+                <button type="button" onClick={() => openDocument(doc.id).catch((err: any) => window.alert(err?.response?.status === 409 ? 'Tiedoston eheystarkistus epäonnistui.' : 'Tiedoston avaaminen epäonnistui.'))}
+                  className="text-primary-400 hover:text-primary-300 font-semibold text-xs flex items-center space-x-1">
                   <Download className="w-3.5 h-3.5" />
                   <span>Lataa</span>
                 </button>

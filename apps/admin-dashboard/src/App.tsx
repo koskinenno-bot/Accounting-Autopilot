@@ -9,6 +9,7 @@ import OverviewPage from './pages/OverviewPage';
 import UsersPage from './pages/UsersPage';
 import QueuePage from './pages/QueuePage';
 import InvitePage from './pages/InvitePage';
+import AccountPage from './pages/AccountPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CompaniesPage from './pages/CompaniesPage';
@@ -59,7 +60,6 @@ function App() {
             <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
             <Route path="/queue" element={<ProtectedRoute><QueuePage /></ProtectedRoute>} />
             <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-            <Route path="/accounting" element={<ProtectedRoute><div className="glass-card p-8 text-center"><h2 className="text-2xl font-bold">Kirjanpidon hallinta</h2><p className="text-slate-400 mt-2">Tämä osio on työn alla.</p></div></ProtectedRoute>} />
             <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
             <Route path="/fees" element={<ProtectedRoute><FeesPage /></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
@@ -80,7 +80,7 @@ function App() {
             <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><NotificationHistoryPage /></ProtectedRoute>} />
             <Route path="/audit" element={<ProtectedRoute><AuditPage /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><div className="glass-card p-8 text-center"><h2 className="text-2xl font-bold">Asetukset</h2><p className="text-slate-400 mt-2">Tämä osio on työn alla.</p></div></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           </Routes>
         </Router>
         </CompanyProvider>

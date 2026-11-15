@@ -23,7 +23,8 @@ export interface QueueInput {
   today: Date;
   drafts: { id: string; companyId: string; entryDate: Date; description: string | null; counterparty: string | null;
     autoApprovable: boolean; needsVoucher: boolean; reviewNote: string | null; amount: number }[];
-  missingVouchers: { id: string; companyId: string; entryDate: Date; description: string | null; counterparty: string | null; amount: number }[];
+  missingVouchers: { id: string; companyId: string; entryDate: Date; description: string | null; counterparty: string | null; amount: number;
+    voucherRequestedAt?: Date | null; voucherRequestedFrom?: string | null }[];
   invoices: { id: string; companyId: string; supplierName: string; invoiceNumber: string | null; dueDate: Date | null; totalAmount: number; status: string }[];
   endedOpenYears: { id: string; companyId: string; startDate: Date; endDate: Date }[];
   lastBankDates: { companyId: string; lastDate: Date | null }[];
@@ -34,6 +35,7 @@ export const INVOICE_LOOKAHEAD_DAYS = 7;
 export const BANK_STALE_DAYS = 10;
 export const VOUCHER_URGENT_DAYS = 30;
 export const REVIEW_URGENT_DAYS = 30;
+export const VOUCHER_REQUEST_WAIT_DAYS = 7;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const daysBetween = (a: Date, b: Date) => Math.floor((b.getTime() - a.getTime()) / DAY);
@@ -103,11 +105,15 @@ export const buildQueue = (input: QueueInput): QueueItem[] => {
 
   for (const e of input.missingVouchers) {
     const age = daysBetween(e.entryDate, today);
+    // Juuri pyydetty tosite ei ole kiireellinen: odotetaan vastausta viikko
+    const requestedRecently = e.voucherRequestedAt ? daysBetween(e.voucherRequestedAt, today) < VOUCHER_REQUEST_WAIT_DAYS : false;
     items.push({
       key: `voucher:${e.id}`, companyId: e.companyId, kind: 'VOUCHER',
-      priority: age > VOUCHER_URGENT_DAYS ? 2 : 3,
+      priority: age > VOUCHER_URGENT_DAYS && !requestedRecently ? 2 : 3,
       title: `Tosite puuttuu: ${e.counterparty || e.description || 'pankkimeno'}`,
-      detail: `Maksettu ${fiDate(e.entryDate)}, ${age} päivää sitten. Pyydä tosite toimittajalta tai hallitukselta.`,
+      detail: e.voucherRequestedAt
+        ? `Maksettu ${fiDate(e.entryDate)}. Tositetta pyydetty ${fiDate(e.voucherRequestedAt)}${e.voucherRequestedFrom ? ` (${e.voucherRequestedFrom})` : ''}.`
+        : `Maksettu ${fiDate(e.entryDate)}, ${age} päivää sitten. Pyydä tosite toimittajalta tai hallitukselta.`,
       date: iso(e.entryDate), amount: e.amount, entryId: e.id,
     });
   }

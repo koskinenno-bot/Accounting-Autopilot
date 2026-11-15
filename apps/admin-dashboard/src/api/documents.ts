@@ -44,3 +44,23 @@ export const deleteDocument = async (id: string) => {
   const { data } = await documentsApi.delete(`/documents/${id}`);
   return data;
 };
+
+/** Avaa dokumentin uudessa välilehdessä (lataus tunnisteella, ei julkista linkkiä). */
+export const openDocument = async (id: string) => {
+  const win = window.open('', '_blank');
+  try {
+    const { data, headers } = await documentsApi.get(`/documents/${id}/download`, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([data], { type: headers['content-type'] || 'application/octet-stream' }));
+    if (win) win.location.href = url; else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    win?.close();
+    throw err;
+  }
+};
+
+/** Allekirjoitetun tilinpäätöksen PDF:t arkistoon (10 v). */
+export const archiveClosing = async (companyId: string, fiscalYearId: string) => {
+  const { data } = await documentsApi.post('/documents/closing-archive', { companyId, fiscalYearId });
+  return data as { archived: string[]; skipped: string[]; retentionUntil: string };
+};

@@ -37,6 +37,7 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
 }) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { canWrite } = useCompany();
   const [lines, setLines] = useState<Line[]>(() => toInputLines(entry));
   const [showMatch, setShowMatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +183,7 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
         <div className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">{error}</div>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      {canWrite && <div className="flex flex-wrap gap-3">
         {isUnmatchedPayment && (
           <button
             type="button"
@@ -220,7 +221,7 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
         >
           <Trash2 className="w-4 h-4" /><span>{t('pending.delete')}</span>
         </button>
-      </div>
+      </div>}
 
       {showMatch && isUnmatchedPayment && (
         <div className="border-t border-white/5 pt-4 space-y-2">
@@ -259,7 +260,7 @@ const PendingEntriesPage = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
-  const { companies, selectedCompany } = useCompany();
+  const { companies, selectedCompany, canWrite } = useCompany();
   const companyId: string | undefined = selectedCompany?.id;
 
   const { data: entries, isLoading } = useQuery({
@@ -323,7 +324,7 @@ const PendingEntriesPage = () => {
           <h2 className="text-2xl font-bold">{t('pending.title')}</h2>
           <p className="text-slate-400 mt-1">{t('pending.subtitle')}</p>
         </div>
-        {sureCount > 0 && (
+        {canWrite && sureCount > 0 && (
           <button
             type="button"
             onClick={() => approveSure.mutate()}

@@ -81,6 +81,8 @@ model AccountingEntry {
   counterparty   String?            // toimittaja / maksaja (oppiminen: toimittaja -> tili)
   autoApprovable Boolean  @default(false) // tekoäly varma => "Hyväksy kaikki varmat"
   needsVoucher   Boolean  @default(false) // pankkimeno ilman tositetta (KPL 2:5 §)
+  voucherRequestedAt   DateTime? // puuttuvaa tositetta pyydetty sähköpostilla
+  voucherRequestedFrom String?
   reviewNote     String?
   // NORMAL | OPENING (avaus) | CLOSING (tuloksen siirto, ei tuloslaskelmaan) | ACCRUAL (jaksotus)
   // | ACCRUAL_REVERSAL (jaksotuksen purku) | DEPRECIATION (poisto)
@@ -439,4 +441,29 @@ model BankBalance {
 
   @@unique([companyId, iban, date])
   @@index([companyId, date])
+}
+
+/// Ajankäyttö yhtiöittäin (tavoite: alle 10 h ihmistyötä yhtiötä kohden vuodessa).
+/// Automaattinen: dashboard lähettää minuutin välein merkin, kun käyttäjä työskentelee yhtiön sivuilla.
+model ActiveTime {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  day       DateTime @db.Date
+  minutes   Int      @default(0)
+  lastBeat  DateTime
+  @@unique([companyId, userId, day])
+  @@index([companyId, day])
+}
+
+/// Käsin kirjattu työaika (esim. puhelut, kokoukset ja muu työ ohjelman ulkopuolella).
+model TimeEntry {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  day       DateTime @db.Date
+  minutes   Int
+  note      String?
+  createdAt DateTime @default(now())
+  @@index([companyId, day])
 }

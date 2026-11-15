@@ -383,3 +383,48 @@ export const saveBankBalance = async (companyId: string, iban: string, date: str
 export const deleteBankBalance = async (id: string) => (await accountingApi.delete(`/accounting/bank-balances/${id}`)).data;
 export const markBankReconciled = async (companyId: string, key: string, reconciled: boolean) =>
   (await accountingApi.post('/accounting/bank-reconciliation/mark', { companyId, key, reconciled })).data;
+
+// --- Ajankäyttö yhtiöittäin ---
+export interface CompanyTime {
+  companyId: string;
+  minutesYear: number;
+  minutesMonth: number;
+  projectedYearHours: number | null;
+  targetHours: number;
+  status: 'ok' | 'warning' | 'over';
+}
+export interface TimeEntry { id: string; companyId: string; userId: string; day: string; minutes: number; note: string | null }
+
+export const sendTimeHeartbeat = async (companyId: string) => {
+  await accountingApi.post('/accounting/time/heartbeat', { companyId });
+};
+export const getTimeSummary = async (companyIds: string[]): Promise<CompanyTime[]> => {
+  if (companyIds.length === 0) return [];
+  const { data } = await accountingApi.get('/accounting/time/summary', { params: { companyIds: companyIds.join(',') } });
+  return data;
+};
+export const getTimeEntries = async (companyId: string): Promise<{ entries: TimeEntry[]; autoByUser: { userId: string; minutes: number }[] }> => {
+  const { data } = await accountingApi.get('/accounting/time/entries', { params: { companyId } });
+  return data;
+};
+export const createTimeEntry = async (body: { companyId: string; day: string; minutes: number; note?: string }) => {
+  const { data } = await accountingApi.post('/accounting/time/entries', body);
+  return data;
+};
+export const deleteTimeEntry = async (id: string) => {
+  await accountingApi.delete(`/accounting/time/entries/${id}`);
+};
+
+// --- Puuttuvat tositteet ---
+export interface MissingVoucher {
+  id: string; entryDate: string; amount: number; counterparty: string | null; description: string | null;
+  voucherRequestedAt: string | null; voucherRequestedFrom: string | null;
+}
+export const getMissingVouchers = async (companyId: string): Promise<MissingVoucher[]> => {
+  const { data } = await accountingApi.get('/accounting/missing-vouchers', { params: { companyId } });
+  return data;
+};
+export const requestMissingVouchers = async (body: { companyId: string; recipient: string; replyTo?: string; message?: string }) => {
+  const { data } = await accountingApi.post('/accounting/missing-vouchers/request', body);
+  return data as { requested: number };
+};

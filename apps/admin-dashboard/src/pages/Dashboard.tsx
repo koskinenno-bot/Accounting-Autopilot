@@ -6,6 +6,9 @@ import axios from 'axios';
 import { getLedger, getAccountingStats } from '../api/accounting';
 import { getCompanyStats } from '../api/companies';
 import { useCompany } from '../hooks/useCompany';
+import { useAuth } from '../hooks/useAuth';
+import TimeCard from '../components/TimeCard';
+import MissingVouchersCard from '../components/MissingVouchersCard';
 import { uploadVoucher } from '../api/vouchers';
 import { uploadStatement } from '../api/bank';
 import { useRef, useState, useEffect } from 'react';
@@ -98,7 +101,8 @@ const Dashboard = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bankInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, canWrite } = useCompany();
+  const { user } = useAuth();
   const { data: companyStats } = useQuery({ queryKey: ['companyStats'], queryFn: getCompanyStats });
   
   const { data: accStats } = useQuery({
@@ -174,7 +178,7 @@ const Dashboard = () => {
           <h2 className="text-2xl font-bold">Hallintapaneeli</h2>
           <p className="text-slate-400 mt-1">Yhteenveto tilanteesta ja automaation tilasta.</p>
         </div>
-        <div className="flex items-center space-x-3">
+        {canWrite && <div className="flex items-center space-x-3">
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -211,7 +215,7 @@ const Dashboard = () => {
             )}
             <span>{uploadMutation.isPending ? t('common.loading') : t('dashboard.uploadVoucher')}</span>
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Stats Grid */}
@@ -243,6 +247,13 @@ const Dashboard = () => {
           hint="Pääkirja"
         />
       </div>
+
+      {selectedCompany && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <TimeCard companyId={selectedCompany.id} canWrite={canWrite} userId={user?.id} />
+          <MissingVouchersCard companyId={selectedCompany.id} canWrite={canWrite} userEmail={user?.email} />
+        </div>
+      )}
 
       {/* Main Content Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

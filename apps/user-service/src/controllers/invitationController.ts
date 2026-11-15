@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../db';
-import { JWT_SECRET } from '../config';
+import { signToken } from '../session';
 import { COMPANY_ROLE_LABELS, CompanyRole, isCompanyRole } from '../access';
 
 /** Kutsun voimassaolo; palauttaa kutsun tai lähettää virheen. */
@@ -118,7 +117,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
     });
 
     const fresh = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    const token = jwt.sign({ userId: fresh.id, role: fresh.role }, JWT_SECRET, { expiresIn: '24h' });
+    const token = signToken(fresh);
     res.json({ user: { id: fresh.id, email: fresh.email, role: fresh.role, mfaEnabled: fresh.mfaEnabled }, token });
   } catch (error) {
     console.error('Invitation accept error:', error);

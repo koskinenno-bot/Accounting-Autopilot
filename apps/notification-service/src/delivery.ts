@@ -12,6 +12,8 @@ import { PrismaClient } from '../prisma/client';
 
 export interface EmailJob {
   notificationId: string; recipient: string; subject: string; template?: string; data?: Record<string, unknown>;
+  /** Vastausosoite (esim. isännöitsijän oma sähköposti tositepyynnöissä). */
+  replyTo?: string;
 }
 
 const TEMPLATE_DIR = path.join(__dirname, '../templates');
@@ -76,7 +78,7 @@ export const deliver = async (prisma: PrismaClient, job: EmailJob) => {
   try {
     const { html, text } = await renderEmail(job.subject, job.template, job.data);
     const info: any = await getTransporter().sendMail({
-      from: fromAddress(), replyTo: process.env.MAIL_REPLY_TO || undefined, to: job.recipient, subject: job.subject, html, text,
+      from: fromAddress(), replyTo: job.replyTo || process.env.MAIL_REPLY_TO || undefined, to: job.recipient, subject: job.subject, html, text,
     });
     let note: string | null = null;
     if (mailMode() === 'outbox') {

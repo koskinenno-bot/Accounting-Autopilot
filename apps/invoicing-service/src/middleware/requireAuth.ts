@@ -12,6 +12,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { createHash } from 'crypto';
 
 export interface AuthUser {
   userId: string;
@@ -99,7 +100,9 @@ export const getCompanyRole = async (req: Request, companyId: unknown): Promise<
   if (!user || typeof companyId !== 'string' || !companyId) return null;
   if (user.role === 'SERVICE' || user.role === 'SUPER_ADMIN') return 'MANAGER';
 
-  const key = `${user.userId}:${companyId}`;
+  // Välimuistin avain tunnisteesta, ei käyttäjästä: uusi tunniste (esim. salasanan vaihdon jälkeen) tarkistetaan
+  // heti, ja mitätöidyn tunnisteen oikeus vanhenee välimuistista viimeistään minuutissa.
+  const key = `${createHash('sha256').update(req.headers.authorization || user.userId).digest('base64url')}:${companyId}`;
   const cached = accessCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.role;
 

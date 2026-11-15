@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useCompany } from '../hooks/useCompany';
 import { COMPANY_ROLE_LABELS } from '../api/organizations';
+import { useActivityTracking } from '../hooks/useActivityTracking';
 
 const SidebarItem = ({ icon: Icon, label, path, active }: { icon: any, label: string, path: string, active: boolean }) => (
   <Link to={path}>
@@ -44,6 +45,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const initials = (displayName.slice(0, 2) || '?').toUpperCase();
 
   const { companies, selectedCompany, selectCompany, role, canWrite, isOrgAdmin, organization } = useCompany();
+  // Työaika yhtiöittäin (Kaikki yhtiöt -näkymä ja Työjono eivät kohdistu yhteen yhtiöön)
+  const companyPage = !['/', '/queue', '/companies', '/users', '/settings'].includes(location.pathname);
+  useActivityTracking(selectedCompany?.id, canWrite && companyPage);
 
   // Toimiston näkymät ja valitun yhtiön näkymät. Roolit tarkistetaan lopullisesti palvelimella;
   // valikko vain piilottaa sivut, joita käyttäjä ei voi käyttää.
@@ -52,6 +56,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { icon: ListTodo, label: 'Työjono', path: '/queue', show: (companies ?? []).some((c) => c.myRole === 'MANAGER' || c.myRole === 'ASSISTANT') },
     { icon: Building2, label: t('nav.companies'), path: '/companies', show: isOrgAdmin },
     { icon: UserCog, label: 'Käyttäjät', path: '/users', show: isOrgAdmin },
+    { icon: Settings, label: 'Oma tili', path: '/settings', show: true },
   ].filter((i) => i.show);
 
   const companyItems = [
@@ -75,7 +80,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { icon: Shield, label: t('documents.title'), path: '/documents', show: true },
     { icon: Mail, label: t('notifications.title'), path: '/notifications', show: canWrite },
     { icon: History, label: t('audit.title'), path: '/audit', show: true },
-    { icon: Settings, label: t('nav.settings'), path: '/settings', show: isOrgAdmin },
   ].filter((i) => i.show && selectedCompany);
 
   return (
@@ -87,7 +91,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <div className="w-10 h-10 premium-gradient rounded-xl flex items-center justify-center">
             <span className="font-bold text-xl">A</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">AI Accountat <span className="text-primary-400">v3</span></span>
+          <span className="text-xl font-bold tracking-tight">AI Accountant <span className="text-primary-400">v3</span></span>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto">

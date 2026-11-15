@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle, FileDown, Lock, Plus, RotateCcw, Trash2, Unlock } from 'lucide-react';
+import { AlertTriangle, Archive, CheckCircle, FileDown, Lock, Plus, RotateCcw, Trash2, Unlock } from 'lucide-react';
+import { archiveClosing } from '../api/documents';
 import { useCompany } from '../hooks/useCompany';
 import FiscalYearSelect, { fiscalYearLabel } from '../components/FiscalYearSelect';
 import { getClosingPackage, openBookPdf } from '../api/reports';
@@ -162,6 +163,7 @@ const SignTab = ({ view, readOnly, canWrite, canManage, onSave }: {
   view: ClosingPackageView; readOnly: boolean; canWrite: boolean; canManage: boolean; onSave: (body: ClosingPackageUpdate) => Promise<unknown>;
 }) => {
   const p = view.package;
+  const { selectedCompany } = useCompany();
   const [signers, setSigners] = useState(p.signers.length ? p.signers : DEFAULT_SIGNERS);
   const [place, setPlace] = useState(p.signPlace ?? '');
   const [signDate, setSignDate] = useState(isoDate(p.signDate));
@@ -169,12 +171,24 @@ const SignTab = ({ view, readOnly, canWrite, canManage, onSave }: {
   const [kind, setKind] = useState<'AUDITOR' | 'INSPECTOR'>(p.auditorKind ?? 'AUDITOR');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const archive = useMutation({
+    mutationFn: () => archiveClosing(selectedCompany!.id, view.fiscalYear.id),
+    onSuccess: (r) => {
+      setError(null);
+      setMessage(r.archived.length
+        ? `Arkistoitu: ${r.archived.join(', ')}. Säilytys ${new Date(r.retentionUntil).toLocaleDateString('fi-FI')} asti (Dokumentit-sivu).`
+        : 'Tilinpäätös on jo arkistoitu (Dokumentit-sivu).');
+    },
+    onError: (err) => setError(`Tilinpäätös on allekirjoitettu, mutta arkistointi epäonnistui: ${errText(err)}. Yritä uudelleen painikkeella Arkistoi.`),
+  });
   const run = useMutation({
     mutationFn: (body: ClosingPackageUpdate) => onSave(body),
     onSuccess: (_d, body) => {
       setError(null);
-      setMessage(body.signed === true ? 'Merkitty allekirjoitetuksi' : body.signed === false ? 'Lukitus avattu' : 'Tallennettu');
-      setTimeout(() => setMessage(null), 3000);
+      setMessage(body.signed === true ? 'Merkitty allekirjoitetuksi. Arkistoidaan…' : body.signed === false ? 'Lukitus avattu' : 'Tallennettu');
+      // Allekirjoitettu tilinpäätös, tase-erittelyt, päiväkirja ja pääkirja arkistoon 10 vuodeksi (KPL 2:10 §)
+      if (body.signed === true) archive.mutate();
+      else setTimeout(() => setMessage(null), 3000);
     },
     onError: (err) => setError(errText(err)),
   });
@@ -243,6 +257,12 @@ const SignTab = ({ view, readOnly, canWrite, canManage, onSave }: {
               run.mutate({ ...fields(), signed: true });
             }}>
             <Lock className="w-4 h-4" />Merkitse allekirjoitetuksi
+          </button>
+        )}
+        {p.signedAt && canWrite && (
+          <button type="button" className={`${smallButton} flex items-center gap-1`} disabled={archive.isPending} onClick={() => archive.mutate()}
+            title="Tallentaa tilinpäätöksen, tase-erittelyt, päiväkirjan ja pääkirjan PDF:t lukittuina arkistoon 10 vuodeksi">
+            <Archive className="w-4 h-4" />{archive.isPending ? 'Arkistoidaan…' : 'Arkistoi'}
           </button>
         )}
         {p.signedAt && canManage && (

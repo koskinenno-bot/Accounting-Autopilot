@@ -33,3 +33,4 @@ _varmuuskopio_claude_*/
 # Saapuneet-kansio (tiliotteet ja tositteet tuodaan automaattisesti)
 inbox/*
 !inbox/LUEMINUT.md
+varmuuskopiot/

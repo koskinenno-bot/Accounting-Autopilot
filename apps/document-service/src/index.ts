@@ -2,9 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
-import path from 'path';
 import documentRoutes from './routes/documentRoutes';
-import { requireAuth } from './middleware/requireAuth';
 
 const app = express();
 const port = process.env.PORT || 3007;
@@ -17,8 +15,8 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use(cors());
 app.use(express.json());
-// Tiedostot vain kirjautuneille (aiemmin kaikki ladatut dokumentit olivat julkisesti saatavilla)
-app.use('/uploads', requireAuth, express.static(path.join(__dirname, '../uploads')));
+// Tiedostot ladataan vain reitillä /documents/:id/download, joka tarkistaa yhtiön käyttöoikeuden.
+// (Aiempi /uploads-kansion jako näytti minkä tahansa yhtiön tiedoston kenelle tahansa kirjautuneelle.)
 
 // Routes
 app.use('/api/v1/documents', documentRoutes);
