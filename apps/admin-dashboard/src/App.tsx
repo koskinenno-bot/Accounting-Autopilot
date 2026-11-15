@@ -27,6 +27,7 @@ import PurchasesPage from './pages/PurchasesPage';
 import FinancialStatementsPage from './pages/FinancialStatementsPage';
 import BudgetPage from './pages/BudgetPage';
 import MigrationPage from './pages/MigrationPage';
+import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages';
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,8 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/invite/:token" element={<InvitePage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             
             <Route path="/" element={<ProtectedRoute><OverviewPage /></ProtectedRoute>} />
             <Route path="/company" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

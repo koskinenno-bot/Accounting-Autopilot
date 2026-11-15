@@ -1,8 +1,8 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { History, User, Activity, Globe, Info, Search } from 'lucide-react';
-import { getAuditLogs } from '../api/audit';
+import { History, User, Activity, Globe, Info, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { getAuditLogs, verifyAuditLog } from '../api/audit';
 import { useCompany } from '../hooks/useCompany';
 
 const AuditPage = () => {
@@ -13,6 +13,12 @@ const AuditPage = () => {
   const { data: logs, isLoading } = useQuery({
     queryKey: ['audit-logs', selectedCompany?.id],
     queryFn: () => getAuditLogs(selectedCompany?.id),
+    enabled: !!selectedCompany?.id,
+  });
+
+  const { data: integrity } = useQuery({
+    queryKey: ['audit-verify', selectedCompany?.id],
+    queryFn: () => verifyAuditLog(selectedCompany!.id),
     enabled: !!selectedCompany?.id,
   });
 
@@ -32,6 +38,16 @@ const AuditPage = () => {
           <h2 className="text-2xl font-bold">{t('audit.title')}</h2>
           <p className="text-slate-400 mt-1">Virallinen ja muuttumaton tallenne kaikista järjestelmän tapahtumista.</p>
         </div>
+        {integrity && (integrity.ok ? (
+          <div className="flex items-center gap-2 text-sm text-emerald-300 px-3 py-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10"
+            title="Jokainen tapahtuma sisältää edellisen tapahtuman tiivisteen. Muutettu tai poistettu tapahtuma näkyisi katkoksena.">
+            <ShieldCheck className="w-4 h-4" />Eheys tarkistettu: {integrity.checked} tapahtumaa{integrity.legacy ? `, ${integrity.legacy} vanhaa ennen ketjutusta` : ''}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-rose-300 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10">
+            <ShieldAlert className="w-4 h-4" />Eheys rikki: {integrity.reason}
+          </div>
+        ))}
       </div>
 
       <div className="glass-card overflow-hidden">

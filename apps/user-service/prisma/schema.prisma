@@ -145,3 +145,16 @@ model Share {
 
   shareholder         Shareholder @relation(fields: [shareholderId], references: [id], onDelete: Cascade)
 }
+
+/// Salasanan palautuslinkki. Tietokantaan tallennetaan vain tunnisteen SHA-256-tiiviste; linkki on voimassa tunnin
+/// ja kertakäyttöinen.
+model PasswordReset {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}

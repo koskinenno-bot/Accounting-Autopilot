@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { PrismaClient, AuditAction } from '../../prisma/client';
+import { nextTimestamp, recordHash, verifyChain } from '../chain';
 
-const prisma = new PrismaClient();
+export const prisma = new PrismaClient();
 
 const ACTIONS: string[] = Object.values(AuditAction);
 
@@ -17,19 +19,38 @@ export const logEvent = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'entityType on pakollinen' });
     }
 
-    const auditLog = await prisma.auditLog.create({
-      data: {
-        companyId: companyId ?? null,
-        userId: userId ?? (req as any).user?.userId ?? null,
-        action: normalizedAction as AuditAction,
-        entityType: String(entityType),
-        entityId: entityId != null ? String(entityId) : null,
-        description,
-        // JSON-sarjallistus poistaa esim. Decimal/Date-oliot, joita Prisma ei hyväksy Json-kenttään sellaisenaan
-        changes: changes === undefined ? undefined : JSON.parse(JSON.stringify(changes)),
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'],
-      },
+    const fields = {
+      id: crypto.randomUUID(),
+      companyId: companyId ? String(companyId) : null,
+      userId: userId ?? (req as any).user?.userId ?? null,
+      action: normalizedAction,
+      entityType: String(entityType),
+      entityId: entityId != null ? String(entityId) : null,
+      description: description ?? null,
+      // JSON-sarjallistus poistaa esim. Decimal/Date-oliot, joita Prisma ei hyväksy Json-kenttään sellaisenaan
+      changes: changes === undefined ? null : JSON.parse(JSON.stringify(changes)),
+    };
+    // Yhtiön ketjuun lisätään yksi tapahtuma kerrallaan (transaktiokohtainen lukko yhtiön tunnisteesta)
+    const auditLog = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'audit:' + (fields.companyId ?? '-')}))`;
+      const last = await tx.auditLog.findFirst({
+        where: { companyId: fields.companyId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { hash: true, createdAt: true },
+      });
+      const createdAt = nextTimestamp(last?.createdAt ?? null);
+      const prevHash = last?.hash ?? null;
+      const hash = recordHash(prevHash, { ...fields, createdAt });
+      return tx.auditLog.create({
+        data: {
+          ...fields,
+          action: normalizedAction as AuditAction,
+          changes: fields.changes === null ? undefined : fields.changes,
+          createdAt, prevHash, hash,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+        },
+      });
     });
 
     res.status(201).json(auditLog);
@@ -58,5 +79,17 @@ export const getLogs = async (req: Request, res: Response) => {
     res.json(logs);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+};
+
+/** Yhtiön muutoslokin eheyden tarkistus (tiivisteketju). */
+export const verifyLogs = async (req: Request, res: Response) => {
+  try {
+    const companyId = String(req.query.companyId);
+    const rows = await prisma.auditLog.findMany({ where: { companyId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    res.json(verifyChain(rows.map((r) => ({ ...r, action: String(r.action), changes: r.changes ?? null }))));
+  } catch (error) {
+    console.error('Audit verify error:', error);
+    res.status(500).json({ error: 'Tarkistus epäonnistui' });
   }
 };

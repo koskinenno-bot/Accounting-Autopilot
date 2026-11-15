@@ -19,3 +19,8 @@ export const getAuditLogs = async (companyId?: string) => {
   const { data } = await auditApi.get(`/audit/logs${companyId ? `?companyId=${companyId}` : ''}`);
   return data;
 };
+
+export interface AuditVerification { ok: boolean; checked: number; legacy: number; brokenAt: string | null; reason: string | null }
+/** Muutoslokin tiivisteketjun tarkistus (muutetut tai poistetut tapahtumat). */
+export const verifyAuditLog = async (companyId: string) =>
+  (await auditApi.get('/audit/verify', { params: { companyId } })).data as AuditVerification;

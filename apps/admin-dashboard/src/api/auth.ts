@@ -16,3 +16,11 @@ export const register = async (userData: { email: string; password: string; firs
   return data;
 };
 
+
+// --- Salasanan palautus ---
+export const requestPasswordReset = async (email: string) =>
+  (await authApi.post('/auth/password-reset', { email })).data as { message: string; devLink?: string };
+export const checkPasswordReset = async (token: string) =>
+  (await authApi.get(`/auth/password-reset/${token}`)).data as { status: string; email: string | null };
+export const confirmPasswordReset = async (token: string, password: string) =>
+  (await authApi.post('/auth/password-reset/confirm', { token, password })).data as { message: string };

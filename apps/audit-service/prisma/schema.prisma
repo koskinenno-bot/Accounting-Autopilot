@@ -30,6 +30,11 @@ model AuditLog {
   
   createdAt     DateTime    @default(now())
 
+  /// Tiivisteketju yhtiökohtaisesti: hash = SHA-256(edellinen hash + tapahtuman sisältö). Muutos tai poisto
+  /// katkaisee ketjun (ks. src/chain.ts). Tyhjä = tapahtuma ennen ketjutuksen käyttöönottoa.
+  prevHash      String?
+  hash          String?
+
   @@index([companyId])
   @@index([userId])
   @@index([action])

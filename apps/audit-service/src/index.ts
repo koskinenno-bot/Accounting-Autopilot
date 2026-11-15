@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import auditRoutes from './routes/auditRoutes';
+import { prisma } from './controllers/auditController';
+import { ensureImmutable } from './immutability';
 
 const app = express();
 const port = process.env.PORT || 3009;
@@ -16,6 +18,8 @@ app.use('/api/v1/audit', auditRoutes);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'audit-service', timestamp: new Date().toISOString() });
 });
+
+ensureImmutable(prisma);
 
 app.listen(port, () => {
   console.log(`Audit Service running on port ${port}`);

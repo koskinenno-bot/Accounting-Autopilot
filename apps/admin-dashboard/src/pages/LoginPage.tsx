@@ -81,6 +81,7 @@ const LoginPage = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between ml-1">
                 <label className="text-sm font-medium text-slate-300">{t('auth.password')}</label>
+                <Link to="/forgot-password" className="text-xs text-primary-400 hover:text-primary-300">Unohditko salasanan?</Link>
               </div>
               <div className="relative group">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-primary-400 transition-colors" />

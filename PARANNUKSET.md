@@ -328,10 +328,26 @@ Rajapinnat (accounting-service): `GET /accounting/migration`, `POST /accounting/
 `POST /accounting/migration/import`, `DELETE /accounting/migration/:fiscalYearId`. Uusi taulu AccountMapping.
 Logiikka `apps/accounting-service/src/migration.ts`, testit `test/migration.test.ts`.
 
+## Salasanan palautus ja muuttumaton muutosloki (moduuli 10, osa 1, 15.11.2026)
+
+- **Salasanan palautus:** kirjautumissivulla "Unohditko salasanan?". Linkki lähetetään sähköpostiin, on voimassa tunnin
+  ja on kertakäyttöinen. Kantaan tallennetaan vain linkin tiiviste. Vastaus on sama, oli osoite rekisteröity tai ei,
+  ja pyyntöjä hyväksytään enintään 3 tunnissa. **Kehitysympäristössä** (NODE_ENV ≠ production) linkki näytetään myös
+  sivulla, koska sähköposti ei vielä lähde. Tuotannossa aseta `APP_URL` (dashboardin osoite linkkiin).
+  Rajapinnat: `POST /auth/password-reset`, `GET /auth/password-reset/:token`, `POST /auth/password-reset/confirm`,
+  `POST /auth/change-password` (kirjautunut käyttäjä). Uusi taulu PasswordReset.
+- **Muutosloki:** tietokantatriggeri estää AuditLog-rivien muuttamisen, poistamisen ja TRUNCATEn (asennetaan
+  audit-servicen käynnistyessä). Lisäksi tapahtumat ketjutetaan yhtiökohtaisesti tiivisteillä, joten myös
+  tietokannan pääkäyttäjän tekemä muutos havaitaan: Muutosloki-sivulla näkyy "Eheys tarkistettu" tai katkoskohta.
+  Rajapinta `GET /audit/verify?companyId=`. Logiikka `apps/audit-service/src/chain.ts` ja `src/immutability.ts`.
+
+Huom: sisäänkirjautumistunniste (JWT) on voimassa 24 h myös salasanan vaihdon jälkeen; tunnisteiden mitätöinti
+on seuraavan vaiheen työ.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
-2. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
+2. ~~Audit-lokin muuttumattomuus tietokantatasolla~~ (tehty, moduuli 10).
 3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ALV-velvollisten yhtiöiden ALV-käsittely.
 4. ~~Vastikereskontra ja maksumuistutukset~~ (tehty, moduuli 4). ~~Ostolaskujen hyväksyntä ja maksuaineisto~~ (tehty, moduuli 5).
 5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
