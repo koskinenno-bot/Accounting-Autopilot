@@ -1,0 +1,3 @@
+# Enable Bankingin yksityinen avain (<sovellustunnus>.pem) tähän kansioon. Ei versionhallintaan.
+*
+!.gitignore

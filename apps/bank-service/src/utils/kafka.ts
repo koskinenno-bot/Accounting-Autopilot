@@ -19,7 +19,8 @@ export const connectProducer = async () => {
   }
 };
 
-export const publishBankStatementReceived = async (event: BankStatementReceivedEvent) => {
+/** Palauttaa false, jos julkaisu epäonnistui (pankkiyhteyden synkronointi ei silloin siirrä hakukohtaa eteenpäin). */
+export const publishBankStatementReceived = async (event: BankStatementReceivedEvent): Promise<boolean> => {
   try {
     await producer.send({
       topic: 'bank.statement.received',
@@ -31,8 +32,10 @@ export const publishBankStatementReceived = async (event: BankStatementReceivedE
       ]
     });
     console.log(`Published bank.statement.received event for company: ${event.data.companyId}`);
+    return true;
   } catch (error) {
     console.error('Failed to publish bank statement event:', error);
+    return false;
   }
 };
 

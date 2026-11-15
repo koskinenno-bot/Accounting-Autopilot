@@ -1,0 +1,69 @@
+// Pankkiyhteydet (Enable Banking, PSD2-tilitietopalvelu)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ConnectionStatus {
+  PENDING   // käyttäjä ohjattu pankkiin, odotetaan paluuta
+  ACTIVE
+  EXPIRED   // suostumus vanheni, yhdistetään uudelleen
+  REVOKED   // poistettu
+  FAILED    // pankkitunnistus keskeytyi tai epäonnistui
+}
+
+/// Yksi pankkisuostumus (Enable Bankingin session). Yksi suostumus voi kattaa useita tilejä.
+model BankConnection {
+  id           String           @id @default(uuid())
+  companyId    String
+  aspspName    String
+  aspspCountry String
+  psuType      String           @default("business")
+  state        String           @unique
+  sessionId    String?
+  status       ConnectionStatus @default(PENDING)
+  validUntil   DateTime
+  syncFrom     DateTime
+  lastSyncAt   DateTime?
+  lastError    String?
+  createdBy    String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  accounts     BankConnectionAccount[]
+
+  @@index([companyId])
+}
+
+model BankConnectionAccount {
+  id              String         @id @default(uuid())
+  connectionId    String
+  connection      BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  uid             String
+  iban            String?
+  name            String?
+  currency        String         @default("EUR")
+  enabled         Boolean        @default(true)
+  lastBookingDate DateTime?
+  lastSyncAt      DateTime?
+  lastImported    Int            @default(0)
+  balance         Decimal?       @db.Decimal(15, 2)
+  balanceAt       DateTime?
+
+  @@unique([connectionId, uid])
+}
+
+/// Jo kirjanpitoon välitetyt tapahtumat (päällekkäinen hakujakso ei välitä niitä uudelleen)
+model BankSyncedTransaction {
+  accountId      String
+  entryReference String
+  bookingDate    DateTime
+  createdAt      DateTime @default(now())
+
+  @@id([accountId, entryReference])
+}

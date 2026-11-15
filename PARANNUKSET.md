@@ -120,7 +120,7 @@ myös id-pohjaiset reitit (vienti, lasku, dokumentti, tosite, tilikausi) tarkist
 Palveluiden väliset kutsut (`x-service-token`) ohittavat tarkistuksen; reporting-service välittää käyttäjän
 tunnisteen, jolloin accounting-service tarkistaa oikeuden.
 
-### Tiliotteiden automaattinen nouto pankista (jatkokehitys)
+### Tiliotteiden automaattinen nouto pankista (PSD2-vaihtoehto tehty: moduuli 6)
 Suoraa pankkiyhteyttä ei voi rakentaa ilman pankin kanssa tehtyä sopimusta ja tunnuksia. Nykyinen
 `inbox/`-kansio on rajapinta, johon mikä tahansa näistä voidaan kytkeä ilman muutoksia kirjanpitoon:
 1. **Pankin tiliotepalvelu (Web Services / pankkiyhteysohjelmisto)**: yrityksen pankki toimittaa camt.053-tiliotteet
@@ -343,6 +343,44 @@ Logiikka `apps/accounting-service/src/migration.ts`, testit `test/migration.test
 
 Huom: sisäänkirjautumistunniste (JWT) on voimassa 24 h myös salasanan vaihdon jälkeen; tunnisteiden mitätöinti
 on seuraavan vaiheen työ.
+
+## Pankkiyhteys (moduuli 6, 15.11.2026)
+
+Yhtiön pankkitili yhdistetään kerran pankkitunnuksilla (PSD2-tilitietopalvelu **Enable Banking**). Sen jälkeen
+tapahtumat haetaan automaattisesti kuuden tunnin välein ja ne kulkevat samaa reittiä kuin tiliotetiedostot:
+viitesuoritukset kohdistuvat vastikereskontraan, lähtevät maksut ostolaskuihin ja loput tiliöidään tai jäävät selvitettäviin.
+
+### Käyttöönotto
+1. Rekisteröidy: https://enablebanking.com/cp → **API applications** → Add a new application.
+   Environment = Sandbox (testi) tai Production, Redirect URL = `http://localhost:5173/bank-connections/callback`.
+2. Register lataa tiedoston `<sovellustunnus>.pem`. Siirrä se kansioon `apps\bank-service\salaiset\`
+   (kansio on suljettu versionhallinnasta). Sovellustunnus luetaan tiedoston nimestä.
+3. Aja KAYNNISTA.bat: se luo kannan `bank_service`, lisää `DATABASE_URL`:n bank-servicen .env-tiedostoon ja päivittää skeeman.
+4. Dashboard → **Pankkiyhteydet** → valitse pankki → Yhdistä pankkiin → tunnistaudu → paluu sovellukseen.
+
+Testipankit (Sandbox): Nordea ja Handelsbanken ilman tunnuksia, OP käyttäjä 88888881, S-Pankki customera / 12345678.
+Tuotannossa: omien tilien testaus "Linked accounts" -tilassa (rajoitettu tila), asiakasyhtiöiden tilit vaativat
+Enable Bankingin sopimuksen ja KYC-tarkastuksen.
+
+### Toiminta
+- Suostumus on voimassa pankin enimmäisajan, enintään 180 päivää. Sivu varoittaa 14 päivää ennen vanhenemista,
+  ja "Yhdistä uudelleen" uusii sen. Vanhentunut yhteys merkitään, eikä hakua tehdä.
+- Haku alkaa käyttäjän valitsemasta päivästä. Seuraavat haut alkavat 3 päivää ennen viimeisintä kirjauspäivää,
+  jotta myöhässä kirjautuvat tapahtumat eivät jää välistä. Jo välitetyt tapahtumat ohitetaan (taulu BankSyncedTransaction),
+  ja kirjanpito ohittaa lisäksi saman arkistointitunnuksen (`BANK-<tunnus>`), myös camt-tiedostotuonnin kanssa.
+- Vain kirjatut (BOOK) tapahtumat; varaukset haetaan, kun ne kirjautuvat. RF-viite muunnetaan kansalliseksi viitteeksi.
+- Jos Kafka ei vastaa, hakukohta ei etene, ja virhe näkyy yhteydellä.
+- Oikeudet: yhdistäminen, poisto ja tilin haun kytkentä = isännöitsijä; "Hae nyt" = isännöitsijä tai assistentti;
+  hallitus näkee yhteydet ja saldot. Yhdistäminen ja poisto kirjataan muutoslokiin.
+- Rajapinnat (bank-service 3005): `GET /bank/connections?companyId`, `GET /bank/connections/aspsps`,
+  `POST /bank/connections`, `POST /bank/connections/callback`, `POST /bank/connections/:id/sync`,
+  `PATCH /bank/connections/:id/accounts/:accountId`, `DELETE /bank/connections/:id`.
+- Asetukset (.env, valinnaiset): `ENABLE_BANKING_KEY_PATH`, `ENABLE_BANKING_APP_ID`, `ENABLE_BANKING_REDIRECT_URL`,
+  `ENABLE_BANKING_API_URL`, `ENABLE_BANKING_SYNC_HOURS` (oletus 6).
+- Testattu päästä päähän testipalvelinta vasten (JWT-allekirjoitus tarkistettu, sivutus, peruutettu tunnistus,
+  viitesuoritus → lasku maksetuksi, lähtevä maksu → kirjaus, uusintahaku ilman tuplia). Yksikkötestit: bank-service 20.
+
+Jatkokehitys: pankin saldon ja kirjanpidon pankkitilin (1900) täsmäytys sivulla; tuotantoversiossa paluuosoite https-osoitteeksi.
 
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden

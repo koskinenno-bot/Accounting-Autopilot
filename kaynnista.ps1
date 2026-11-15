@@ -28,7 +28,7 @@ for ($i = 0; $i -lt 30; $i++) {
   Start-Sleep -Seconds 2
 }
 # init-db.sh ajetaan vain uudelle volyymille: varmistetaan kaikki kannat
-foreach ($db in 'user_service','accounting_service','voucher_service','billing_service','document_service','common_audit_log','notification_service') {
+foreach ($db in 'user_service','accounting_service','voucher_service','billing_service','document_service','common_audit_log','notification_service','bank_service') {
   $exists = docker exec ai-accountant-postgres psql -U admin -d main_db -tAc "SELECT 1 FROM pg_database WHERE datname='$db'"
   if ($exists -ne '1') {
     docker exec ai-accountant-postgres psql -U admin -d main_db -c "CREATE DATABASE $db;" | Out-Null
@@ -47,7 +47,13 @@ if (-not $SkipInstall) {
 }
 
 # 3. Prisma: client + skeema tietokantaan
-$prismaServices = 'user-service','accounting-service','audit-service','invoicing-service','voucher-service','document-service','notification-service'
+# bank-service: pankkiyhteydet tarvitsevat oman kannan; lisätään osoite vanhaan .env-tiedostoon, jos puuttuu
+$bankEnv = "$root\apps\bank-service\.env"
+if ((Test-Path $bankEnv) -and -not (Select-String -Path $bankEnv -Pattern '^DATABASE_URL=' -Quiet)) {
+  Add-Content -Path $bankEnv -Value 'DATABASE_URL="postgresql://admin:password@localhost:5432/bank_service?schema=public"'
+  Write-Host '  bank-service/.env: lisättiin DATABASE_URL'
+}
+$prismaServices = 'user-service','accounting-service','audit-service','invoicing-service','bank-service','voucher-service','document-service','notification-service'
 if (-not $SkipDb) {
   foreach ($svc in $prismaServices) {
     Step "Prisma: $svc"
@@ -77,6 +83,9 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 Start-Process 'http://localhost:5173'
 Write-Host "`nValmis. Dashboard: http://localhost:5173  (palvelut näkyvät omissa ikkunoissaan; sulje ikkuna pysäyttääksesi palvelun)" -ForegroundColor Green
+if (-not (Get-ChildItem "$root\apps\bank-service\salaiset\*.pem" -ErrorAction SilentlyContinue)) {
+  Write-Host 'Pankkiyhteys pois päältä: siirrä Enable Bankingin .pem-avain kansioon apps\bank-service\salaiset (ks. PARANNUKSET.md)' -ForegroundColor Yellow
+}
 Write-Host "Saapuneet-kansio: $root\inbox\<yhtiön tunnus>\tiliotteet ja \tositteet (ks. inbox\LUEMINUT.md)"
 if (-not (Select-String -Path "$root\apps\ml-service\.env" -Pattern '^ANTHROPIC_API_KEY=.+' -Quiet)) {
   Write-Host 'Tekoälyluku pois päältä: lisää ANTHROPIC_API_KEY tiedostoon apps\ml-service\.env (ks. PARANNUKSET.md)' -ForegroundColor Yellow

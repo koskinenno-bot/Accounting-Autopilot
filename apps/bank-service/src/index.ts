@@ -5,6 +5,7 @@ import bankRoutes from './routes/bankRoutes';
 import { connectProducer, disconnectProducer } from './utils/kafka';
 import { startInboxWatcher } from './utils/inboxWatcher';
 import { importStatement } from './services/statementImporter';
+import { startSyncScheduler } from './controllers/connectionController';
 
 const app = express();
 const port = process.env.PORT || 3005;
@@ -40,6 +41,9 @@ startInboxWatcher({
     return `${result.transactionCount} tapahtumaa (${result.format})`;
   },
 });
+
+// Pankkiyhteyksien ajastettu haku (oletus 6 h välein, ENABLE_BANKING_SYNC_HOURS)
+startSyncScheduler();
 
 process.on('SIGTERM', async () => {
   await disconnectProducer();

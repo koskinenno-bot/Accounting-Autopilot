@@ -27,6 +27,7 @@ import PurchasesPage from './pages/PurchasesPage';
 import FinancialStatementsPage from './pages/FinancialStatementsPage';
 import BudgetPage from './pages/BudgetPage';
 import MigrationPage from './pages/MigrationPage';
+import BankConnectionsPage, { BankCallbackPage } from './pages/BankConnectionsPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages';
 
 const queryClient = new QueryClient();
@@ -64,6 +65,8 @@ function App() {
             <Route path="/ledger" element={<ProtectedRoute><LedgerPage /></ProtectedRoute>} />
             <Route path="/closing" element={<ProtectedRoute><ClosingPage /></ProtectedRoute>} />
             <Route path="/financial-statements" element={<ProtectedRoute><FinancialStatementsPage /></ProtectedRoute>} />
+            <Route path="/bank-connections" element={<ProtectedRoute><BankConnectionsPage /></ProtectedRoute>} />
+            <Route path="/bank-connections/callback" element={<ProtectedRoute><BankCallbackPage /></ProtectedRoute>} />
             <Route path="/migration" element={<ProtectedRoute><MigrationPage /></ProtectedRoute>} />
             <Route path="/budget" element={<ProtectedRoute><BudgetPage /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
