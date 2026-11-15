@@ -253,3 +253,36 @@ model QueueTask {
   @@unique([companyId, itemKey])
   @@index([assignedTo])
 }
+
+/// Tilinpäätöksen tekstiosat tilikausittain: toimintakertomus, liitetiedot, tase-erittelyjen selitteet ja
+/// allekirjoittajat. Tyhjä osio = käytetään raportointipalvelun automaattista tekstiä.
+model ClosingPackage {
+  fiscalYearId   String    @id
+  companyId      String
+  report         Json?     // toimintakertomus { osio: teksti }
+  notes          Json?     // liitetiedot { osio: teksti }
+  balanceNotes   Json?     // tase-erittelyt { tili: selite }
+  signers        Json?     // [{ name, role }]
+  signPlace      String?
+  signDate       DateTime?
+  auditorName    String?
+  auditorKind    String?   // AUDITOR = tilintarkastaja | INSPECTOR = toiminnantarkastaja
+  signedAt       DateTime? // allekirjoitettu: tekstit lukitaan
+  updatedBy      String?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([companyId])
+}
+
+/// Talousarvio: tilikohtainen arvio luonnollisella etumerkillä (tuotot ja kulut positiivisina).
+model BudgetLine {
+  id             String   @id @default(uuid())
+  companyId      String
+  fiscalYearId   String
+  accountNumber  String
+  amount         Decimal  @db.Decimal(15, 2)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([fiscalYearId, accountNumber])
+  @@index([companyId])
+}

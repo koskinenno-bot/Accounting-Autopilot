@@ -94,18 +94,12 @@ def _section_rows(sections: List[Dict], cmp: bool):
     return rows, bold, italic
 
 
-def render_report(kind: str, data: Dict, company_name: str, fiscal_year: Optional[Dict],
-                  previous_year: Optional[Dict] = None) -> bytes:
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm,
-                            title=f"{company_name} {kind}")
-    styles = getSampleStyleSheet()
-    titles = {"income-statement": "Tuloslaskelma", "balance-sheet": "Tase", "maintenance-calculation": "Vastikelaskelma"}
-    story = [
-        Paragraph(company_name, styles["Title"]),
-        Paragraph(f"{titles[kind]} – {_period(fiscal_year)}", styles["Heading2"]),
-        Spacer(1, 6 * mm),
-    ]
+TITLES = {"income-statement": "Tuloslaskelma", "balance-sheet": "Tase", "maintenance-calculation": "Vastikelaskelma"}
+
+
+def report_flowables(kind: str, data: Dict, styles, previous_year: Optional[Dict], fiscal_year: Optional[Dict]) -> List:
+    """Yhden raportin taulukot (käytetään sekä erillisessä PDF:ssä että tilinpäätöspaketissa)."""
+    story: List = []
     cmp = previous_year is not None
     header = ["", _year(fiscal_year), _year(previous_year)] if cmp else None
 
@@ -138,7 +132,21 @@ def render_report(kind: str, data: Dict, company_name: str, fiscal_year: Optiona
         rows = [["Hoitorahoitus"] + blank] + vals[:3] + [["Pääomarahoitus"] + blank] + vals[3:]
         story.append(_table(rows, [0, 3, 4, 8], cmp, header if cmp else None))
         story += [Spacer(1, 5 * mm), Paragraph("Vastikelaskelma asunto-osakeyhtiölain 10 luvun 5 §:n mukaisesti.", styles["Italic"])]
+    return story
 
+
+def render_report(kind: str, data: Dict, company_name: str, fiscal_year: Optional[Dict],
+                  previous_year: Optional[Dict] = None) -> bytes:
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm,
+                            title=f"{company_name} {kind}")
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph(company_name, styles["Title"]),
+        Paragraph(f"{TITLES[kind]} – {_period(fiscal_year)}", styles["Heading2"]),
+        Spacer(1, 6 * mm),
+    ]
+    story += report_flowables(kind, data, styles, previous_year, fiscal_year)
     story += [Spacer(1, 10 * mm), Paragraph(f"Tulostettu {date.today().strftime('%d.%m.%Y')} – AI Accountant v3", styles["Normal"])]
     doc.build(story)
     return buf.getvalue()

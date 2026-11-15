@@ -283,6 +283,33 @@ Rajapinnat (accounting-service): `GET /accounting/purchases`, `PUT /accounting/p
 `PATCH /accounting/payment-batches/:id`. Uudet taulut: PurchaseApproval, ApprovalPolicy, PaymentBatch.
 Säännöt: `apps/accounting-service/src/payments.ts`, testit `test/payments.test.ts`.
 
+## Tilinpäätöspaketti ja talousarvio (moduuli 7, 15.11.2026)
+
+Dashboard → **Tilinpäätöspaketti**, viisi välilehteä:
+
+- **Toimintakertomus:** osiot (yleistä, kiinteistö, korjaukset, kunnossapitotarveselvitys, talousarvion toteutuminen,
+  talous ja rahoitus, tilikauden jälkeiset tapahtumat, hallituksen esitys tuloksesta). Pohja tehdään kirjanpidon
+  luvuista; hakasulkeissa olevat [kohdat] täydennetään. Muokattu teksti tallentuu, ja automaattiseen voi palata.
+- **Liitetiedot:** laatimisperiaatteet (pienyrityssäännökset, PMA 1753/2015), poistomenetelmät käyttöomaisuusrekisteristä,
+  oman pääoman muutokset, pitkäaikaiset lainat, vakuudet, henkilöstö sekä kirjanpitokirjat ja tositelajit.
+- **Tase-erittelyt:** jokaisen taseen tilin avaava saldo, kauden debet ja kredit, päättävä saldo, vertailuvuosi ja
+  kirjoitettava erittely. Varoitus, jos avaava saldo ei täsmää edellisen kauden päättävään (tuloksen siirto 2200 → 2100
+  huomioidaan).
+- **Allekirjoitus:** allekirjoittajat, paikka ja päivä, tilintarkastaja tai toiminnantarkastaja. Suljetun kauden
+  tilinpäätöksen voi merkitä allekirjoitetuksi, jolloin tekstit lukittuvat (lukituksen avaa vain isännöitsijä).
+- **Tulosteet (PDF):** koko tilinpäätös (kansilehti, toimintakertomus talousarviovertailuineen, tuloslaskelma, tase,
+  vastikelaskelma As Oy:lle, liitetiedot, allekirjoitussivu ja tilinpäätösmerkintä), tase-erittelyt, päiväkirja ja
+  pääkirja. Avoimen kauden tilinpäätökseen tulostuu LUONNOS-merkintä.
+
+Dashboard → **Talousarvio:** arvio tileittäin edellisen kauden toteuman ja kuluvan toteuman rinnalla, ero ja
+toteutumis-%. Tyhjät rivit voi täyttää edellisen kauden toteumalla (kuluihin valittava korotus-%).
+
+Rajapinnat: accounting-service `GET|PUT /accounting/fiscal-years/:id/closing-package`,
+`GET|PUT /accounting/fiscal-years/:id/budget`; reporting-service `GET /reports/closing-package`,
+`GET /reports/budget-comparison` ja PDF:t `/reports/{closing-package,balance-details,journal,general-ledger}/pdf`.
+Uudet taulut: ClosingPackage, BudgetLine. Logiikka `apps/reporting-service/src/closing.py` ja `closing_pdf.py`,
+testit `tests/test_closing.py`.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
@@ -290,4 +317,4 @@ Säännöt: `apps/accounting-service/src/payments.ts`, testit `test/payments.tes
 3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ALV-velvollisten yhtiöiden ALV-käsittely.
 4. ~~Vastikereskontra ja maksumuistutukset~~ (tehty, moduuli 4). ~~Ostolaskujen hyväksyntä ja maksuaineisto~~ (tehty, moduuli 5).
 5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
-6. Tilinpäätöksen liitetiedot ja toimintakertomus (AOYL 10:5–6 §) sekä tilintarkastajan käyttöoikeus.
+6. ~~Tilinpäätöksen liitetiedot ja toimintakertomus~~ (tehty, moduuli 7). Tilintarkastajan käyttöoikeus (rooli AUDITOR on jo olemassa).

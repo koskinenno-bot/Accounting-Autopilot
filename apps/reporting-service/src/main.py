@@ -7,6 +7,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth import require_auth
+from closing import (NOTE_SECTIONS, REPORT_SECTIONS, balance_details, budget_comparison, default_notes,
+                     default_report, general_ledger, journal_rows, merge_sections, period_text)
+from closing_pdf import render_balance_details, render_closing_package, render_general_ledger, render_journal
 from pdf import render_report
 from reports import (account_balances, build_balance_sheet, build_income_statement,
                      build_maintenance_calculation, loan_repayments)
@@ -109,14 +112,21 @@ def _without_closing(ledger: List[Dict]) -> List[Dict]:
     return [e for e in ledger if e.get("entryType") != "CLOSING"]
 
 
-async def fetch_company_name(company_id: str, authorization: Optional[str]) -> str:
+async def fetch_company(company_id: str, authorization: Optional[str]) -> Dict:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(f"{USER_SERVICE_URL}/companies", headers={"Authorization": authorization or ""})
             r.raise_for_status()
-            return next((c["name"] for c in r.json() if c["id"] == company_id), "Yhtiö")
+            found = next((c for c in r.json() if c["id"] == company_id), None)
+            if found:
+                return {"name": found["name"], "businessId": found.get("businessId"), "companyType": found.get("companyType", "AS_OY")}
     except httpx.HTTPError:
-        return "Yhtiö"
+        pass
+    return {"name": "Yhtiö", "businessId": None, "companyType": "AS_OY"}
+
+
+async def fetch_company_name(company_id: str, authorization: Optional[str]) -> str:
+    return (await fetch_company(company_id, authorization))["name"]
 
 
 async def fetch_account_names(company_id: str, authorization: Optional[str]) -> Dict[str, str]:
@@ -194,6 +204,123 @@ async def get_report_pdf(companyId: str, report: str, fiscalYearId: Optional[str
     year = fy["endDate"][:4] if fy else "kaikki"
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{report}-{year}.pdf"'})
+
+
+# --- Tilinpäätöspaketti (moduuli 7) ---------------------------------------------------------------------
+
+def _pdf(content: bytes, filename: str) -> Response:
+    return Response(content=content, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+
+
+async def _closing_context(company_id: str, fiscal_year_id: Optional[str], authorization: Optional[str]) -> Dict:
+    fy, prev_fy = await resolve_fiscal_years(company_id, fiscal_year_id, authorization)
+    if not fy:
+        raise HTTPException(status_code=404, detail="Yhtiöllä ei ole tilikausia")
+    full = await fetch_full_ledger(company_id, False, authorization)
+    ledger = within(full, fy)
+    prev_ledger = within(full, prev_fy) if prev_fy else None
+    if prev_ledger is not None and not prev_ledger:
+        prev_ledger, prev_fy = None, None
+    names = await fetch_account_names(company_id, authorization)
+    package = await _get(f"/accounting/fiscal-years/{fy['id']}/closing-package", {}, authorization)
+    budget = await _get(f"/accounting/fiscal-years/{fy['id']}/budget", {}, authorization)
+    assets = await _get("/accounting/assets", {"companyId": company_id}, authorization)
+    company = await fetch_company(company_id, authorization)
+
+    flows = _without_closing(ledger)
+    balances = account_balances(ledger)
+    prev_balances = account_balances(prev_ledger) if prev_ledger is not None else None
+    income = build_income_statement(account_balances(flows), names,
+                                    account_balances(_without_closing(prev_ledger)) if prev_ledger is not None else None)
+    maintenance = None
+    if company["companyType"] != "KOY":
+        maintenance = build_maintenance_calculation(account_balances(flows), loan_repayments(flows))
+        if prev_ledger is not None:
+            pf = _without_closing(prev_ledger)
+            maintenance["previous"] = build_maintenance_calculation(account_balances(pf), loan_repayments(pf))
+    comparison = budget_comparison(account_balances(flows), budget["lines"], names)
+    opening = account_balances([e for e in ledger if e.get("entryType") == "OPENING"])
+    ctx = {
+        "company": company, "fiscalYear": fy, "previousFiscalYear": prev_fy, "package": package, "names": names,
+        "incomeStatement": income, "balanceSheet": build_balance_sheet(balances, names, prev_balances),
+        "maintenance": maintenance, "budget": comparison, "balances": balances, "prevBalances": prev_balances,
+        "openingBalances": opening, "assets": assets, "ledger": ledger,
+    }
+    ctx["report"] = merge_sections(REPORT_SECTIONS, default_report(ctx), package.get("report") or {})
+    ctx["notes"] = merge_sections(NOTE_SECTIONS, default_notes(ctx), package.get("notes") or {})
+    ctx["balanceDetails"] = balance_details(ledger, prev_balances, names, package.get("balanceNotes") or {})
+    return ctx
+
+
+@app.get("/api/v1/reports/closing-package")
+async def get_closing_package(companyId: str, fiscalYearId: Optional[str] = None,
+                              authorization: Optional[str] = Header(default=None), user: dict = Depends(require_auth)):
+    """Tilinpäätöspaketin tekstit (automaattinen pohja + tallennetut), tase-erittelyt ja talousarviovertailu."""
+    ctx = await _closing_context(companyId, fiscalYearId, authorization)
+    missing = [f"{part}: {sec['title']}" for part, secs in (("Toimintakertomus", ctx["report"]), ("Liitetiedot", ctx["notes"]))
+               for sec in secs if sec["needsInput"]]
+    if not ctx["package"].get("signers"):
+        missing.append("Allekirjoittajat puuttuvat")
+    if ctx["fiscalYear"]["status"] != "CLOSED":
+        missing.append("Tilikausi on avoinna (sulje tilikausi Tilinpäätös-sivulla)")
+    return {
+        "company": ctx["company"], "fiscalYear": ctx["fiscalYear"], "previousFiscalYear": ctx["previousFiscalYear"],
+        "package": ctx["package"], "report": ctx["report"], "notes": ctx["notes"],
+        "balanceDetails": ctx["balanceDetails"], "budget": ctx["budget"], "netProfit": ctx["incomeStatement"]["netProfit"],
+        "missing": missing,
+    }
+
+
+@app.get("/api/v1/reports/closing-package/pdf")
+async def get_closing_package_pdf(companyId: str, fiscalYearId: Optional[str] = None,
+                                  authorization: Optional[str] = Header(default=None), user: dict = Depends(require_auth)):
+    ctx = await _closing_context(companyId, fiscalYearId, authorization)
+    return _pdf(render_closing_package(ctx), f"tilinpaatos-{ctx['fiscalYear']['endDate'][:4]}.pdf")
+
+
+@app.get("/api/v1/reports/balance-details/pdf")
+async def get_balance_details_pdf(companyId: str, fiscalYearId: Optional[str] = None,
+                                  authorization: Optional[str] = Header(default=None), user: dict = Depends(require_auth)):
+    ctx = await _closing_context(companyId, fiscalYearId, authorization)
+    pdf = render_balance_details(ctx["company"], ctx["fiscalYear"], ctx["balanceDetails"], ctx["prevBalances"] is not None)
+    return _pdf(pdf, f"tase-erittelyt-{ctx['fiscalYear']['endDate'][:4]}.pdf")
+
+
+async def _books(company_id: str, fiscal_year_id: Optional[str], authorization: Optional[str]):
+    fy = await resolve_fiscal_year(company_id, fiscal_year_id, authorization)
+    if not fy:
+        raise HTTPException(status_code=404, detail="Yhtiöllä ei ole tilikausia")
+    ledger = await fetch_ledger(company_id, fy, False, authorization)
+    return fy, ledger, await fetch_company(company_id, authorization)
+
+
+@app.get("/api/v1/reports/journal/pdf")
+async def get_journal_pdf(companyId: str, fiscalYearId: Optional[str] = None,
+                          authorization: Optional[str] = Header(default=None), user: dict = Depends(require_auth)):
+    fy, ledger, company = await _books(companyId, fiscalYearId, authorization)
+    return _pdf(render_journal(company, fy, journal_rows(ledger)), f"paivakirja-{fy['endDate'][:4]}.pdf")
+
+
+@app.get("/api/v1/reports/general-ledger/pdf")
+async def get_general_ledger_pdf(companyId: str, fiscalYearId: Optional[str] = None,
+                                 authorization: Optional[str] = Header(default=None), user: dict = Depends(require_auth)):
+    fy, ledger, company = await _books(companyId, fiscalYearId, authorization)
+    names = await fetch_account_names(companyId, authorization)
+    return _pdf(render_general_ledger(company, fy, general_ledger(ledger, names)), f"paakirja-{fy['endDate'][:4]}.pdf")
+
+
+@app.get("/api/v1/reports/budget-comparison")
+async def get_budget_comparison(companyId: str, fiscalYearId: Optional[str] = None,
+                                authorization: Optional[str] = Header(default=None), user: dict = Depends(require_auth)):
+    fy = await resolve_fiscal_year(companyId, fiscalYearId, authorization)
+    if not fy:
+        raise HTTPException(status_code=404, detail="Yhtiöllä ei ole tilikausia")
+    ledger = await fetch_ledger(companyId, fy, False, authorization)
+    budget = await _get(f"/accounting/fiscal-years/{fy['id']}/budget", {}, authorization)
+    names = await fetch_account_names(companyId, authorization)
+    return {**budget_comparison(account_balances(_without_closing(ledger)), budget["lines"], names),
+            "fiscalYear": fy, "period": period_text(fy)}
 
 
 if __name__ == "__main__":

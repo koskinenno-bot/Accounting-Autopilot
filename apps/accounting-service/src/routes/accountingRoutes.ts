@@ -6,6 +6,7 @@ import { getQueue, updateTask } from '../controllers/queueController';
 import { getAccounts } from '../services/chartOfAccountsService';
 import { createAccount, updateAccount } from '../controllers/accountController';
 import * as purchases from '../controllers/purchaseController';
+import * as closingPackage from '../controllers/closingPackageController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -37,6 +38,10 @@ router.get('/fiscal-years/:id/closing-checklist', fiscal.getClosingChecklist as 
 router.post('/fiscal-years/:id/opening-balances', fiscal.setOpeningBalances as any);
 router.get('/fiscal-years/:id/depreciation', fiscal.getDepreciation as any);
 router.post('/fiscal-years/:id/depreciation', fiscal.postDepreciation as any);
+router.get('/fiscal-years/:id/closing-package', closingPackage.getClosingPackage as any);
+router.put('/fiscal-years/:id/closing-package', closingPackage.updateClosingPackage as any);
+router.get('/fiscal-years/:id/budget', closingPackage.getBudget as any);
+router.put('/fiscal-years/:id/budget', closingPackage.updateBudget as any);
 router.get('/fiscal-years/:id/accruals', fiscal.getAccruals as any);
 router.post('/fiscal-years/:id/accruals', fiscal.createAccrual as any);
 router.get('/assets', company, fiscal.listAssets as any);

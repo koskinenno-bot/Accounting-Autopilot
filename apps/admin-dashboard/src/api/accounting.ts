@@ -270,3 +270,24 @@ export const downloadPaymentBatch = async (batch: { id: string; executionDate: s
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 };
+
+// --- Tilinpäätöspaketti ja talousarvio (moduuli 7) ---
+
+export interface ClosingPackageUpdate {
+  report?: Record<string, string>; notes?: Record<string, string>; balanceNotes?: Record<string, string>;
+  signers?: { name: string; role: string }[]; signPlace?: string | null; signDate?: string | null;
+  auditorName?: string | null; auditorKind?: 'AUDITOR' | 'INSPECTOR' | null; signed?: boolean;
+}
+export const updateClosingPackage = async (fiscalYearId: string, body: ClosingPackageUpdate) =>
+  (await accountingApi.put(`/accounting/fiscal-years/${fiscalYearId}/closing-package`, body)).data;
+
+export interface BudgetData {
+  fiscalYear: any; previousFiscalYear: any | null;
+  lines: { accountNumber: string; amount: number }[];
+  accounts: { accountNumber: string; accountName: string; isActive: boolean }[];
+  actual: Record<string, number>; previous: Record<string, number>;
+}
+export const getBudget = async (fiscalYearId: string) =>
+  (await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/budget`)).data as BudgetData;
+export const saveBudget = async (fiscalYearId: string, lines: { accountNumber: string; amount: number }[]) =>
+  (await accountingApi.put(`/accounting/fiscal-years/${fiscalYearId}/budget`, { lines })).data as { saved: number };

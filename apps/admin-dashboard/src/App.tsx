@@ -24,6 +24,8 @@ import VastikeReportPage from './pages/VastikeReportPage';
 import AccountsPage from './pages/AccountsPage';
 import FeesPage from './pages/FeesPage';
 import PurchasesPage from './pages/PurchasesPage';
+import FinancialStatementsPage from './pages/FinancialStatementsPage';
+import BudgetPage from './pages/BudgetPage';
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ function App() {
             <Route path="/accounts" element={<ProtectedRoute><AccountsPage /></ProtectedRoute>} />
             <Route path="/ledger" element={<ProtectedRoute><LedgerPage /></ProtectedRoute>} />
             <Route path="/closing" element={<ProtectedRoute><ClosingPage /></ProtectedRoute>} />
+            <Route path="/financial-statements" element={<ProtectedRoute><FinancialStatementsPage /></ProtectedRoute>} />
+            <Route path="/budget" element={<ProtectedRoute><BudgetPage /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
             <Route path="/reports/vastike" element={<ProtectedRoute><VastikeReportPage /></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
