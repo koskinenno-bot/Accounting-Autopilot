@@ -31,6 +31,26 @@ export const getAccounts = async (companyId: string) => {
   return data;
 };
 
+export interface Account {
+  id: string;
+  accountNumber: string;
+  accountName: string;
+  accountType: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+  isActive: boolean;
+}
+
+/** Uusi tili tilikarttaan (vain isännöitsijä). Tilin tyyppi määräytyy numerosta. */
+export const createAccount = async (body: { companyId: string; accountNumber: string; accountName: string }): Promise<Account> => {
+  const { data } = await accountingApi.post('/accounting/accounts', body);
+  return data;
+};
+
+/** Nimen muutos tai käytöstä poisto/palautus. Numeroa ei voi muuttaa. */
+export const updateAccount = async (id: string, body: { accountName?: string; isActive?: boolean }): Promise<Account> => {
+  const { data } = await accountingApi.patch(`/accounting/accounts/${id}`, body);
+  return data;
+};
+
 export interface EntryLineInput {
   accountNumber: string;
   debit: number | string;

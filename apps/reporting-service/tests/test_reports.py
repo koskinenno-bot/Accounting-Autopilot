@@ -81,5 +81,73 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(r["maintenance_fund"]["income"], 0)
 
 
+
+class FormulaTests(unittest.TestCase):
+    def test_expense_groups_follow_formula(self):
+        b = account_balances([
+            entry(("4000", "100", "0"), ("4500", "300", "0"), ("4510", "20", "0"), ("4300", "40", "0"),
+                  ("7000", "500", "0"), ("4010", "60", "0"), ("1900", "0", "1020")),
+        ])
+        r = build_income_statement(b, {"4500": "Lämmitys"})
+        exp = r["sections"][1]
+        titles = [g["title"] for g in exp["groups"]]
+        self.assertEqual(titles, ["Henkilöstökulut", "Hallinto", "Lämmitys", "Jätehuolto", "Korjaukset"])
+        heat = next(g for g in exp["groups"] if g["title"] == "Lämmitys")
+        self.assertEqual(heat["total"], -320.0)
+        self.assertEqual(sum(g["total"] for g in exp["groups"]), exp["total"])
+        self.assertEqual(exp["total"], -1020.0)
+        self.assertEqual([r["account"] for r in exp["rows"]], ["4010", "4000", "4500", "4510", "4300", "7000"])
+
+    def test_every_expense_account_lands_in_one_group(self):
+        from reports import MAINT_EXPENSE, MAINT_EXPENSE_GROUPS, MAINT_INCOME, MAINT_INCOME_GROUPS
+        for main, groups in ((MAINT_EXPENSE, MAINT_EXPENSE_GROUPS), (MAINT_INCOME, MAINT_INCOME_GROUPS)):
+            for n in range(3000, 10000):
+                in_main = any(lo <= n <= hi for lo, hi in main)
+                hits = sum(any(lo <= n <= hi for lo, hi in rs) for _, rs in groups)
+                self.assertEqual(hits, 1 if in_main else 0, n)
+
+    def test_comparison_year(self):
+        prev = account_balances([entry(("1900", "300", "0"), ("3000", "0", "300")),
+                                 entry(("4600", "80", "0"), ("1900", "0", "80"))])
+        cur = account_balances(LEDGER)
+        r = build_income_statement(cur, {}, prev)
+        inc = r["sections"][0]
+        self.assertEqual(inc["previousTotal"], 300.0)
+        self.assertEqual(inc["total"], 450.0)
+        exp = r["sections"][1]
+        water = next(row for row in exp["rows"] if row["account"] == "4600")
+        self.assertEqual((water["amount"], water["previous"]), (0.0, -80.0))  # vain vertailuvuonna
+        self.assertEqual(r["previousNetProfit"], 220.0)
+        self.assertEqual(r["sections"][-1]["previousTotal"], 220.0)
+        # Ilman vertailuvuotta avaimia ei ole (vanha muoto ennallaan)
+        plain = build_income_statement(cur, {})
+        self.assertNotIn("previousTotal", plain["sections"][0])
+        self.assertNotIn("previous", plain["sections"][0]["rows"][0])
+
+    def test_balance_sheet_comparison_and_groups(self):
+        prev = account_balances([entry(("1010", "1000", "0"), ("2500", "0", "1000"))])
+        cur = account_balances([entry(("1010", "1000", "0"), ("2500", "0", "1000")),
+                                entry(("1100", "50", "0"), ("1900", "0", "50"))])
+        r = build_balance_sheet(cur, {}, prev)
+        fixed = r["sections"]["assets"][0]
+        self.assertEqual([g["title"] for g in fixed["groups"]], ["Aineelliset hyödykkeet", "Sijoitukset"])
+        self.assertEqual((fixed["total"], fixed["previousTotal"]), (1050.0, 1000.0))
+        self.assertEqual(r["previousTotal"], 1000.0)
+        liab_prev = sum(s["previousTotal"] for s in r["sections"]["liabilities"])
+        self.assertEqual(liab_prev, 1000.0)
+
+    def test_pdf_with_comparison(self):
+        from pdf import render_report
+        fy = {"startDate": "2026-01-01", "endDate": "2026-12-31", "status": "OPEN"}
+        pfy = {"startDate": "2025-01-01", "endDate": "2025-12-31", "status": "CLOSED"}
+        b = account_balances(LEDGER)
+        for kind, data in (("income-statement", build_income_statement(b, {}, b)),
+                           ("balance-sheet", build_balance_sheet(b, {}, b)),
+                           ("maintenance-calculation", {**build_maintenance_calculation(b),
+                                                        "previous": build_maintenance_calculation(b)})):
+            pdf = render_report(kind, data, "As Oy Testi", fy, pfy)
+            self.assertTrue(pdf.startswith(b"%PDF"), kind)
+            self.assertTrue(render_report(kind, data, "As Oy Testi", fy).startswith(b"%PDF"))
+
 if __name__ == "__main__":
     unittest.main()

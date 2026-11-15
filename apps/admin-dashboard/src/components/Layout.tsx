@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Building2, Inbox, BookOpen, UserCog, Eye, ListTodo } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Building2, Inbox, BookOpen, UserCog, Eye, ListTodo, ListTree } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -58,6 +58,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { icon: Inbox, label: 'Yhtiön tilanne', path: '/company', show: true },
     { icon: ClipboardList, label: 'Käsittelemättömät', path: '/pending', show: canWrite },
     { icon: BookOpen, label: 'Pääkirja', path: '/ledger', show: true },
+    { icon: ListTree, label: 'Tilikartta', path: '/accounts', show: true },
     { icon: FileText, label: t('nav.financialStatements'), path: '/reports', show: true },
     { icon: ArrowRightLeft, label: t('reports.vastikelaskelma'), path: '/reports/vastike', show: true },
     { icon: CalendarCheck, label: t('nav.closing'), path: '/closing', show: true },

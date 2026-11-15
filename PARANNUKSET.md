@@ -210,11 +210,31 @@ Rajapinnat: accounting-service `GET /accounting/queue?companyIds=…` ja `PUT /a
 user-service `GET /organizations/:id/members`. Uusi taulu `QueueTask` (accounting-service), luodaan `kaynnista.ps1`:llä.
 Säännöt: `apps/accounting-service/src/queue.ts`, testit `test/queue.test.ts`.
 
+## Tilikartta ja raporttikaavat (moduuli 3, 15.11.2026)
+
+**Tilikartta.** Taloyhtiön tilikarttapohja laajennettiin noin 70 tiliin (hoitotuotot eriteltyinä vastikkeisiin,
+käyttökorvauksiin ja vuokriin; hoitokulut kaavan ryhmiin; rahastot, lainat, ALV-saamiset ja -velat). Uudet tilit
+lisätään olemassa oleville yhtiöille automaattisesti käynnistyksessä, vanhoihin tileihin ei kosketa.
+Dashboard → **Tilikartta**: tilit ryhmiteltyinä, haku, ja isännöitsijälle tilin lisäys, uudelleennimeäminen sekä
+käytöstä poisto. Tilin numero määrää sen paikan raporteilla (lomake näyttää sen ennen tallennusta), joten numeroa ei
+voi muuttaa jälkikäteen. Käytöstä poistetulle tilille ei voi kirjata eikä automaatio ehdota sitä; vanhat kirjaukset
+säilyvät. Rajapinnat: `POST /accounting/accounts`, `PATCH /accounting/accounts/:id` (vain isännöitsijä).
+
+**Raportit.** Tuloslaskelma noudattaa asunto-osakeyhtiön kaavaa (KPA-asetus 1753/2015): hoitotuotot ja hoitokulut
+eritellään kaavan riveihin (henkilöstökulut, hallinto, käyttö ja huolto, ulkoalueet, siivous, lämmitys, vesi,
+sähkö, jätehuolto, vakuutukset, vuokrat, kiinteistövero, korjaukset, muut). Taseen pysyvät vastaavat jaetaan
+aineellisiin hyödykkeisiin ja sijoituksiin. Kaikissa raporteissa ja PDF:issä on **edellisen tilikauden
+vertailusarake** (KPL 3:1a §), kun edelliseltä kaudelta on kirjauksia. Vastikelaskelmassa näkyvät edellisen kauden
+luvut, ja KOY:lle näytetään huomautus siitä, milloin laskelma on pakollinen.
+
+Numeroalueet: `apps/reporting-service/src/reports.py` (MAINT_EXPENSE_GROUPS ym.), testit `tests/test_reports.py`,
+tilikarttapohja `apps/accounting-service/src/services/chartOfAccountsService.ts`, testit `test/chart.test.ts`.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
 2. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
-3. Varsinaisen TATO-tilikartan käyttöönotto (nykyinen on yksinkertaistus) ja ALV-velvollisten yhtiöiden ALV-käsittely.
+3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ALV-velvollisten yhtiöiden ALV-käsittely.
 4. Myyntisaamisten ja ostovelkojen reskontraraportit sekä maksumuistutukset myöhässä oleville vastikkeille.
 5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
 6. Tilinpäätöksen liitetiedot ja toimintakertomus (AOYL 10:5–6 §) sekä tilintarkastajan käyttöoikeus.

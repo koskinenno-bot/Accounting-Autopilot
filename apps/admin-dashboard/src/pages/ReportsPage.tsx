@@ -8,34 +8,68 @@ import FiscalYearSelect from '../components/FiscalYearSelect';
 
 const eur = (n: number) => `${n.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
-interface Section { title: string; rows?: { account: string; label: string; amount: number }[]; total: number; subtotal?: boolean }
+interface Row { account: string; label: string; amount: number; previous?: number }
+interface Section {
+  title: string; rows?: Row[]; total: number; previousTotal?: number; subtotal?: boolean;
+  groups?: { title: string; rows: Row[]; total: number; previousTotal?: number }[];
+}
+interface FiscalYear { startDate: string; endDate: string }
 
-/** Taloyhtiön kaavan mukainen osio: otsikko, tilirivit ja välisumma. */
-const SectionBlock = ({ section }: { section: Section }) => {
+const yearLabel = (fy?: FiscalYear | null) =>
+  fy ? `${new Date(fy.startDate).toLocaleDateString('fi-FI')}–${new Date(fy.endDate).toLocaleDateString('fi-FI')}` : '';
+
+/** Rivi: selite ja summat. Vertailuvuoden sarake näkyy, kun edellinen tilikausi on olemassa. */
+const Line = ({ label, amount, previous, cmp, className = '', labelClass = 'text-slate-400' }: {
+  label: string; amount: number; previous?: number; cmp: boolean; className?: string; labelClass?: string;
+}) => (
+  <div className={`grid ${cmp ? 'grid-cols-[1fr_8rem_8rem]' : 'grid-cols-[1fr_8rem]'} gap-2 py-1.5 text-sm ${className}`}>
+    <span className={labelClass}>{label}</span>
+    <span className="font-mono text-right">{eur(amount)}</span>
+    {cmp && <span className="font-mono text-right text-slate-500">{previous === undefined ? '' : eur(previous)}</span>}
+  </div>
+);
+
+/** Taloyhtiön kaavan mukainen osio: otsikko, erittelyryhmät tai tilirivit ja välisumma. */
+const SectionBlock = ({ section, cmp }: { section: Section; cmp: boolean }) => {
   if (section.subtotal) {
     return (
-      <div className="flex justify-between py-3 border-t border-white/10 font-bold">
+      <div className={`grid ${cmp ? 'grid-cols-[1fr_8rem_8rem]' : 'grid-cols-[1fr_8rem]'} gap-2 py-3 border-t border-white/10 font-bold`}>
         <span className="uppercase text-sm tracking-wide">{section.title}</span>
-        <span className={section.total < 0 ? 'text-rose-400' : 'text-emerald-400'}>{eur(section.total)}</span>
+        <span className={`text-right ${section.total < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{eur(section.total)}</span>
+        {cmp && <span className="text-right text-slate-500">{section.previousTotal === undefined ? '' : eur(section.previousTotal)}</span>}
       </div>
     );
   }
   return (
     <div>
       <h4 className="text-xs uppercase font-bold text-slate-500 mt-3 mb-1">{section.title}</h4>
-      {(section.rows || []).map((r) => (
-        <div key={r.label} className="flex justify-between py-1.5 border-b border-white/5 text-sm">
-          <span className="text-slate-400">{r.label}</span>
-          <span className="font-mono">{eur(r.amount)}</span>
-        </div>
-      ))}
-      <div className="flex justify-between py-1.5 text-sm font-semibold">
-        <span>{section.title} yhteensä</span>
-        <span className="font-mono">{eur(section.total)}</span>
-      </div>
+      {section.groups?.length
+        ? section.groups.map((g) => (
+          <div key={g.title} className="border-b border-white/5">
+            <Line label={g.title} amount={g.total} previous={g.previousTotal} cmp={cmp} labelClass="text-slate-200" />
+            {/* Ryhmän tilit näytetään, kun ryhmässä on useampi tili tai tilin nimi poikkeaa ryhmästä */}
+            {(g.rows.length > 1 || !g.rows[0]?.label.endsWith(g.title)) && g.rows.map((r) => (
+              <Line key={r.label} label={r.label} amount={r.amount} previous={r.previous} cmp={cmp}
+                className="pl-4 py-1 text-xs" labelClass="text-slate-500" />
+            ))}
+          </div>
+        ))
+        : (section.rows || []).map((r) => (
+          <Line key={r.label} label={r.label} amount={r.amount} previous={r.previous} cmp={cmp} className="border-b border-white/5" />
+        ))}
+      <Line label={`${section.title} yhteensä`} amount={section.total} previous={section.previousTotal} cmp={cmp}
+        className="font-semibold" labelClass="" />
     </div>
   );
 };
+
+const YearHeader = ({ fy, prev }: { fy?: FiscalYear | null; prev?: FiscalYear | null }) => (
+  <div className={`grid ${prev ? 'grid-cols-[1fr_8rem_8rem]' : 'grid-cols-[1fr_8rem]'} gap-2 text-xs text-slate-500 border-b border-white/10 pb-1`}>
+    <span />
+    <span className="text-right">{yearLabel(fy)}</span>
+    {prev && <span className="text-right">{yearLabel(prev)}</span>}
+  </div>
+);
 
 const ReportsPage = () => {
   const { t } = useTranslation();
@@ -73,7 +107,7 @@ const ReportsPage = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{t('reports.title')}</h2>
-          <p className="text-slate-400 mt-1">Tuloslaskelma ja tase asunto-osakeyhtiön kaavan mukaan (vain hyväksytyt viennit).</p>
+          <p className="text-slate-400 mt-1">Tuloslaskelma ja tase taloyhtiön kaavan mukaan vertailuvuoden kanssa (vain hyväksytyt viennit).</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <FiscalYearSelect companyId={companyId} value={fiscalYearId} onChange={setFiscalYearId} />
@@ -115,17 +149,29 @@ const ReportsPage = () => {
             <span>{activeTab === 'income' ? t('reports.incomeStatement') : t('reports.balanceSheet')}</span>
           </h3>
           {activeTab === 'income'
-            ? (data.sections as Section[]).map((s) => <SectionBlock key={s.title} section={s} />)
+            ? (
+              <div>
+                <YearHeader fy={data.fiscalYear} prev={data.previousFiscalYear} />
+                {(data.sections as Section[]).map((s) => <SectionBlock key={s.title} section={s} cmp={!!data.previousFiscalYear} />)}
+              </div>
+            )
             : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {(['assets', 'liabilities'] as const).map((side) => (
                   <div key={side}>
-                    <h4 className="font-bold">{side === 'assets' ? 'VASTAAVAA' : 'VASTATTAVAA'}</h4>
-                    {(data.sections[side] as Section[]).map((s) => <SectionBlock key={s.title} section={s} />)}
-                    <div className="flex justify-between py-3 border-t border-white/10 font-bold">
-                      <span>{side === 'assets' ? 'Vastaavaa yhteensä' : 'Vastattavaa yhteensä'}</span>
-                      <span>{eur(side === 'assets' ? data.assets.total : data.equity.total)}</span>
-                    </div>
+                    <h4 className="font-bold mb-1">{side === 'assets' ? 'VASTAAVAA' : 'VASTATTAVAA'}</h4>
+                    <YearHeader fy={data.fiscalYear} prev={data.previousFiscalYear} />
+                    {(data.sections[side] as Section[]).map((s) => <SectionBlock key={s.title} section={s} cmp={!!data.previousFiscalYear} />)}
+                    <Line
+                      label={side === 'assets' ? 'Vastaavaa yhteensä' : 'Vastattavaa yhteensä'}
+                      amount={side === 'assets' ? data.assets.total : data.equity.total}
+                      previous={data.previousFiscalYear
+                        ? (data.sections[side] as Section[]).reduce((sum, s) => sum + (s.previousTotal ?? 0), 0)
+                        : undefined}
+                      cmp={!!data.previousFiscalYear}
+                      className="py-3 border-t border-white/10 font-bold text-base"
+                      labelClass=""
+                    />
                   </div>
                 ))}
                 {!data.balanced && (

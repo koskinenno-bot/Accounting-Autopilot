@@ -28,7 +28,7 @@ const suggestExpenseAccount = async (companyId: string, tx: BankTransaction): Pr
         supplier: counterparty || null,
         kind: 'expense', // lähtevä maksu => vain kulutilit (ei esim. 3100 Vesimaksut)
         // tilikartta tekoälyluokittelulle, jos avainsana ei osu
-        accounts: (await getAccounts(companyId)).map(({ accountNumber, accountName }) => ({ accountNumber, accountName })),
+        accounts: (await getAccounts(companyId)).filter((a) => a.isActive).map(({ accountNumber, accountName }) => ({ accountNumber, accountName })),
       },
       { headers: serviceHeaders(), timeout: 60_000 }, // tekoälyluokittelu voi kestää
     );

@@ -40,21 +40,77 @@ def _label(acc: str, names: Dict[str, str]) -> str:
 
 
 def _eur(cents: int) -> float:
-    return round(cents / 100, 2)
+    return round(cents / 100, 2) + 0.0  # + 0.0 muuttaa -0.0:n nollaksi
 
 
-def _rows(balances: Dict[str, int], names: Dict[str, str], ranges: List[Tuple[int, int]], sign: int,
-          exclude: Optional[List[Tuple[int, int]]] = None) -> Tuple[List[Dict], int]:
-    rows, total = [], 0
-    for acc, cents in sorted(balances.items()):
-        n = _num(acc)
-        if cents == 0 or not any(lo <= n <= hi for lo, hi in ranges):
+def _flip(v: float) -> float:
+    return -v + 0.0
+
+
+Ranges = List[Tuple[int, int]]
+
+
+def _in(n: int, ranges: Ranges) -> bool:
+    return any(lo <= n <= hi for lo, hi in ranges)
+
+
+def _rows(balances: Dict[str, int], names: Dict[str, str], ranges: Ranges, sign: int,
+          prev: Optional[Dict[str, int]] = None) -> Tuple[List[Dict], int, int]:
+    """Alueen tilirivit. Vertailuvuoden kanssa mukana myös tilit, joilla on saldoa vain edellisenä vuonna.
+    Palauttaa (rivit, summa, vertailuvuoden summa) senteinä."""
+    accounts = set(balances) | set(prev or {})
+    rows, total, prev_total = [], 0, 0
+    for acc in sorted(accounts):
+        cur, old = balances.get(acc, 0), (prev or {}).get(acc, 0)
+        if (cur == 0 and old == 0) or not _in(_num(acc), ranges):
             continue
-        if exclude and any(lo <= n <= hi for lo, hi in exclude):
+        row = {"account": acc, "label": _label(acc, names), "amount": _eur(sign * cur)}
+        if prev is not None:
+            row["previous"] = _eur(sign * old)
+        rows.append(row)
+        total += sign * cur
+        prev_total += sign * old
+    return rows, total, prev_total
+
+
+def _section(title: str, rows: List[Dict], total: int, prev_total: int, prev: bool, **extra) -> Dict:
+    sec = {"title": title, "rows": rows, "total": _eur(total), **extra}
+    if prev:
+        sec["previousTotal"] = _eur(prev_total)
+    return sec
+
+
+def _subtotal(title: str, total: int, prev_total: int, prev: bool) -> Dict:
+    return _section(title, [], total, prev_total, prev, subtotal=True)
+
+
+def _grouped(balances: Dict[str, int], names: Dict[str, str], groups: List[Tuple[str, Ranges]], sign: int,
+             prev: Optional[Dict[str, int]]) -> Tuple[List[Dict], List[Dict], int, int]:
+    """Kaavan erittelyryhmät (esim. hoitokulut: hallinto, lämmitys...). Tyhjät ryhmät jätetään pois."""
+    out, all_rows, total, prev_total = [], [], 0, 0
+    for title, ranges in groups:
+        rows, t, pt = _rows(balances, names, ranges, sign, prev)
+        if not rows:
             continue
-        rows.append({"account": acc, "label": _label(acc, names), "amount": _eur(sign * cents)})
-        total += sign * cents
-    return rows, total
+        out.append(_section(title, rows, t, pt, prev is not None))
+        all_rows += rows
+        total += t
+        prev_total += pt
+    return out, all_rows, total, prev_total
+
+
+def _neg(rows: List[Dict]) -> List[Dict]:
+    return [{**r, "amount": _flip(r["amount"]), **({"previous": _flip(r["previous"])} if "previous" in r else {})} for r in rows]
+
+
+def _neg_groups(groups: List[Dict]) -> List[Dict]:
+    out = []
+    for g in groups:
+        ng = {**g, "rows": _neg(g["rows"]), "total": _flip(g["total"])}
+        if "previousTotal" in g:
+            ng["previousTotal"] = _flip(g["previousTotal"])
+        out.append(ng)
+    return out
 
 
 # Numeroalueet (TATO-pohja, ks. accounting-service chartOfAccountsService.ts)
@@ -65,49 +121,85 @@ FIN_INCOME = [(3900, 3999)]
 FIN_EXPENSE = [(8000, 8999)]
 TAXES = [(9000, 9999)]
 
+# Taloyhtiön tuloslaskelmakaavan erittelyt (KPA-asetus 1753/2015, liite: asunto-osakeyhtiön kaava).
+# Ryhmien alueet kattavat koko pääalueen, joten jokainen tili osuu täsmälleen yhteen ryhmään.
+MAINT_INCOME_GROUPS: List[Tuple[str, Ranges]] = [
+    ("Vastikkeet", [(3000, 3099)]),
+    ("Käyttökorvaukset", [(3100, 3499)]),
+    ("Vuokratuotot", [(3500, 3599)]),
+    ("Muut hoitotuotot", [(3600, 3899)]),
+]
+MAINT_EXPENSE_GROUPS: List[Tuple[str, Ranges]] = [
+    ("Henkilöstökulut", [(4010, 4029)]),
+    ("Hallinto", [(4000, 4009), (4030, 4099), (4900, 4999)]),
+    ("Käyttö ja huolto", [(4100, 4199)]),
+    ("Ulkoalueiden hoito", [(4200, 4249)]),
+    ("Siivous", [(4250, 4299)]),
+    ("Lämmitys", [(4500, 4599)]),
+    ("Vesi ja jätevesi", [(4600, 4699)]),
+    ("Sähkö ja kaasu", [(4700, 4799)]),
+    ("Jätehuolto", [(4300, 4499)]),
+    ("Vahinkovakuutukset", [(4800, 4849)]),
+    ("Vuokrat", [(4850, 4869)]),
+    ("Kiinteistövero", [(4870, 4899)]),
+    ("Korjaukset", [(7000, 7899)]),
+    ("Muut hoitokulut", [(5000, 6899), (7900, 7999)]),
+]
 
-def build_income_statement(balances: Dict[str, int], names: Dict[str, str]) -> Dict:
-    m_inc, m_inc_t = _rows(balances, names, MAINT_INCOME, -1)
-    m_exp, m_exp_t = _rows(balances, names, MAINT_EXPENSE, 1)
-    dep, dep_t = _rows(balances, names, DEPRECIATION, 1)
-    f_inc, f_inc_t = _rows(balances, names, FIN_INCOME, -1)
-    f_exp, f_exp_t = _rows(balances, names, FIN_EXPENSE, 1)
-    tax, tax_t = _rows(balances, names, TAXES, 1)
 
-    gross = m_inc_t - m_exp_t            # hoitokate
-    operating = gross - dep_t            # liikevoitto (-tappio)
-    before_tax = operating + f_inc_t - f_exp_t
-    net = before_tax - tax_t
+def build_income_statement(balances: Dict[str, int], names: Dict[str, str],
+                           prev: Optional[Dict[str, int]] = None) -> Dict:
+    """Tuloslaskelma taloyhtiön kaavalla. prev = edellisen tilikauden saldot vertailutiedoiksi (KPL 3:1a §)."""
+    p = prev is not None
+    inc_groups, m_inc, m_inc_t, m_inc_p = _grouped(balances, names, MAINT_INCOME_GROUPS, -1, prev)
+    exp_groups, m_exp, m_exp_t, m_exp_p = _grouped(balances, names, MAINT_EXPENSE_GROUPS, 1, prev)
+    dep, dep_t, dep_p = _rows(balances, names, DEPRECIATION, 1, prev)
+    f_inc, f_inc_t, f_inc_p = _rows(balances, names, FIN_INCOME, -1, prev)
+    f_exp, f_exp_t, f_exp_p = _rows(balances, names, FIN_EXPENSE, 1, prev)
+    tax, tax_t, tax_p = _rows(balances, names, TAXES, 1, prev)
+
+    gross, gross_p = m_inc_t - m_exp_t, m_inc_p - m_exp_p              # hoitokate
+    operating, operating_p = gross - dep_t, gross_p - dep_p            # liikevoitto (-tappio)
+    before_tax, before_tax_p = operating + f_inc_t - f_exp_t, operating_p + f_inc_p - f_exp_p
+    net, net_p = before_tax - tax_t, before_tax_p - tax_p
 
     revenue_t = m_inc_t + f_inc_t
     expense_t = m_exp_t + dep_t + f_exp_t + tax_t
-    # Kaavassa kulut esitetään miinusmerkkisinä (rivit ja välisummat samalla merkillä)
-    neg = lambda rows: [{**r, "amount": -r["amount"]} for r in rows]  # noqa: E731
-    return {
+    result = {
         # Yksinkertainen muoto (yhteensopiva aiemman dashboardin kanssa)
         "revenue": {"accounts": {r["label"]: r["amount"] for r in m_inc + f_inc}, "total": _eur(revenue_t)},
         "expenses": {"accounts": {r["label"]: r["amount"] for r in m_exp + dep + f_exp + tax}, "total": _eur(expense_t)},
         "netProfit": _eur(net),
-        # Taloyhtiön tuloslaskelmakaava
+        # Taloyhtiön tuloslaskelmakaava; kulut miinusmerkkisinä (rivit ja välisummat samalla merkillä)
         "sections": [
-            {"title": "Hoitotuotot", "rows": m_inc, "total": _eur(m_inc_t)},
-            {"title": "Hoitokulut", "rows": neg(m_exp), "total": _eur(-m_exp_t)},
-            {"title": "Hoitokate", "subtotal": True, "total": _eur(gross)},
-            {"title": "Poistot ja arvonalentumiset", "rows": neg(dep), "total": _eur(-dep_t)},
-            {"title": "Liikevoitto (-tappio)", "subtotal": True, "total": _eur(operating)},
-            {"title": "Rahoitustuotot ja -kulut", "rows": f_inc + neg(f_exp), "total": _eur(f_inc_t - f_exp_t)},
-            {"title": "Voitto (tappio) ennen tilinpäätössiirtoja ja veroja", "subtotal": True, "total": _eur(before_tax)},
-            {"title": "Tuloverot", "rows": neg(tax), "total": _eur(-tax_t)},
-            {"title": "Tilikauden voitto (tappio)", "subtotal": True, "total": _eur(net)},
+            _section("Hoitotuotot", m_inc, m_inc_t, m_inc_p, p, groups=inc_groups),
+            _section("Hoitokulut", _neg(m_exp), -m_exp_t, -m_exp_p, p, groups=_neg_groups(exp_groups)),
+            _subtotal("Hoitokate", gross, gross_p, p),
+            _section("Poistot ja arvonalentumiset", _neg(dep), -dep_t, -dep_p, p),
+            _subtotal("Liikevoitto (-tappio)", operating, operating_p, p),
+            _section("Rahoitustuotot ja -kulut", f_inc + _neg(f_exp), f_inc_t - f_exp_t, f_inc_p - f_exp_p, p),
+            _subtotal("Voitto (tappio) ennen tilinpäätössiirtoja ja veroja", before_tax, before_tax_p, p),
+            _section("Tuloverot", _neg(tax), -tax_t, -tax_p, p),
+            _subtotal("Tilikauden voitto (tappio)", net, net_p, p),
         ],
     }
+    if p:
+        result["previousNetProfit"] = _eur(net_p)
+    return result
 
 
-def build_balance_sheet(balances: Dict[str, int], names: Dict[str, str]) -> Dict:
+def _unbooked_result(balances: Dict[str, int]) -> int:
+    """Tuloslaskelmatilien saldo, jota ei ole vielä siirretty omaan pääomaan (tuotot positiivisina)."""
+    return -sum(c for a, c in balances.items() if 3000 <= _num(a) <= 9999)
+
+
+def build_balance_sheet(balances: Dict[str, int], names: Dict[str, str],
+                        prev: Optional[Dict[str, int]] = None) -> Dict:
+    """Tase. balances ja prev ovat tilikauden lopun saldot (kumulatiivisesti avausviennit mukaan lukien)."""
+    p = prev is not None
     assets: Dict[str, float] = {}
     equity: Dict[str, float] = {}
     assets_total = equity_total = 0
-    result_cents = 0
     for acc, cents in sorted(balances.items()):
         n = _num(acc)
         if 1000 <= n <= 1999:
@@ -116,41 +208,53 @@ def build_balance_sheet(balances: Dict[str, int], names: Dict[str, str]) -> Dict
         elif 2000 <= n <= 2999:
             equity[_label(acc, names)] = _eur(-cents)
             equity_total -= cents
-        elif 3000 <= n <= 9999:
-            result_cents -= cents  # tuotot (kredit) positiivisina
     # Kirjaamaton tilikauden tulos kuuluu omaan pääomaan, muuten tase ei täsmää.
     # (Tilinpäätösvienti siirtää tuloksen tilille 2200, jolloin tämä on nolla.)
+    result_cents = _unbooked_result(balances)
+    result_prev = _unbooked_result(prev) if p else 0
     if result_cents:
         equity["Tilikauden tulos (kirjaamaton)"] = _eur(result_cents)
         equity_total += result_cents
 
-    fixed, fixed_t = _rows(balances, names, [(1000, 1499)], 1)
-    receivables, rec_t = _rows(balances, names, [(1500, 1899), (1990, 1999)], 1)
-    cash, cash_t = _rows(balances, names, [(1900, 1989)], 1)
-    own, own_t = _rows(balances, names, [(2000, 2399)], -1)
-    if result_cents:
-        own.append({"account": "", "label": "Tilikauden voitto (tappio), kirjaamaton", "amount": _eur(result_cents)})
+    tangible, tan_t, tan_p = _rows(balances, names, [(1000, 1099)], 1, prev)
+    investments, inv_t, inv_p = _rows(balances, names, [(1100, 1499)], 1, prev)
+    receivables, rec_t, rec_p = _rows(balances, names, [(1500, 1899), (1990, 1999)], 1, prev)
+    cash, cash_t, cash_p = _rows(balances, names, [(1900, 1989)], 1, prev)
+    own, own_t, own_p = _rows(balances, names, [(2000, 2399)], -1, prev)
+    if result_cents or result_prev:
+        row = {"account": "", "label": "Tilikauden voitto (tappio), kirjaamaton", "amount": _eur(result_cents)}
+        if p:
+            row["previous"] = _eur(result_prev)
+        own.append(row)
         own_t += result_cents
-    long_term, long_t = _rows(balances, names, [(2400, 2699)], -1)
-    short_term, short_t = _rows(balances, names, [(2700, 2999)], -1)
+        own_p += result_prev
+    long_term, long_t, long_p = _rows(balances, names, [(2400, 2699)], -1, prev)
+    short_term, short_t, short_p = _rows(balances, names, [(2700, 2999)], -1, prev)
 
-    return {
+    fixed_groups = [g for g in (
+        _section("Aineelliset hyödykkeet", tangible, tan_t, tan_p, p),
+        _section("Sijoitukset", investments, inv_t, inv_p, p),
+    ) if g["rows"]]
+    result = {
         "assets": {"accounts": assets, "total": _eur(assets_total)},
         "equity": {"accounts": equity, "total": _eur(equity_total)},
         "balanced": assets_total == equity_total,
         "sections": {
             "assets": [
-                {"title": "Pysyvät vastaavat", "rows": fixed, "total": _eur(fixed_t)},
-                {"title": "Vaihtuvat vastaavat: saamiset", "rows": receivables, "total": _eur(rec_t)},
-                {"title": "Vaihtuvat vastaavat: rahat ja pankkisaamiset", "rows": cash, "total": _eur(cash_t)},
+                _section("Pysyvät vastaavat", tangible + investments, tan_t + inv_t, tan_p + inv_p, p, groups=fixed_groups),
+                _section("Vaihtuvat vastaavat: saamiset", receivables, rec_t, rec_p, p),
+                _section("Vaihtuvat vastaavat: rahat ja pankkisaamiset", cash, cash_t, cash_p, p),
             ],
             "liabilities": [
-                {"title": "Oma pääoma", "rows": own, "total": _eur(own_t)},
-                {"title": "Vieras pääoma: pitkäaikainen", "rows": long_term, "total": _eur(long_t)},
-                {"title": "Vieras pääoma: lyhytaikainen", "rows": short_term, "total": _eur(short_t)},
+                _section("Oma pääoma", own, own_t, own_p, p),
+                _section("Vieras pääoma: pitkäaikainen", long_term, long_t, long_p, p),
+                _section("Vieras pääoma: lyhytaikainen", short_term, short_t, short_p, p),
             ],
         },
     }
+    if p:
+        result["previousTotal"] = _eur(tan_p + inv_p + rec_p + cash_p)
+    return result
 
 
 def build_maintenance_calculation(balances: Dict[str, int], repayments_cents: int = 0) -> Dict:

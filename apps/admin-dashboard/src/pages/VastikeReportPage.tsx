@@ -38,7 +38,7 @@ const VastikeReportPage: React.FC = () => {
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' }).format(amount);
 
-  const FundCard = ({ title, fundData, icon: Icon }: any) => {
+  const FundCard = ({ title, fundData, prevData, icon: Icon }: any) => {
     const isSurplus = fundData.surplus >= 0;
     
     return (
@@ -64,6 +64,12 @@ const VastikeReportPage: React.FC = () => {
                 {formatCurrency(fundData.surplus)}
               </div>
             </div>
+            {prevData && (
+              <div className="text-sm text-gray-500 pt-2 border-t">
+                Edellinen tilikausi: tuotot {formatCurrency(prevData.income)}, kulut {formatCurrency(prevData.expenses)},
+                {' '}{prevData.surplus >= 0 ? 'ylijäämä' : 'alijäämä'} {formatCurrency(prevData.surplus)}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -77,7 +83,7 @@ const VastikeReportPage: React.FC = () => {
           <ArrowRightLeft className="h-8 w-8 text-indigo-600" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('reports.vastikelaskelma')}</h1>
+          <h1 className="text-3xl font-bold text-white">{t('reports.vastikelaskelma')}</h1>
           <p className="text-gray-500">Tilikauden rahastokohtainen toteuma ja ylijäämäseuranta</p>
         </div>
         <div className="ml-auto flex gap-2">
@@ -92,23 +98,32 @@ const VastikeReportPage: React.FC = () => {
         </div>
       </div>
 
+      {selectedCompany?.companyType === 'KOY' && (
+        <div className="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
+          Keskinäinen kiinteistöosakeyhtiö: vastikelaskelma on pakollinen vain, jos yhtiöjärjestyksessä on sovellettu
+          asunto-osakeyhtiölain 10 luvun 5 §:ää (AOYL 28 luku). Muuten laskelma on vapaaehtoinen hallituksen ja osakkaiden tueksi.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <FundCard 
           title={t('reports.maintenanceFund')} 
           fundData={data.maintenance_fund} 
+          prevData={data.previous?.maintenance_fund}
           icon={Calculator}
         />
         <FundCard 
           title={t('reports.capitalFund')} 
           fundData={data.capital_fund} 
+          prevData={data.previous?.capital_fund}
           icon={TrendingUp}
         />
       </div>
 
       <Card className="mt-8 bg-indigo-50 border-indigo-100">
         <CardContent className="p-6">
-          <h3 className="font-bold text-indigo-900 mb-2">Huomioita raportista</h3>
-          <ul className="list-disc list-inside text-indigo-800 space-y-1 text-sm">
+          <h3 className="font-bold text-indigo-300 mb-2">Huomioita raportista</h3>
+          <ul className="list-disc list-inside text-slate-400 space-y-1 text-sm">
             <li>Luvut sisältävät arvonlisäveron (taloyhtiön bruttoperiaate).</li>
             <li>Pääomarahoituslaskelma sisältää hanke- ja rahoitusvastikkeet sekä niihin kohdistuvat rahoituskulut.</li>
             <li>Ylijäämää/alijäämää verrataan tilikauden päättävään taseeseen.</li>

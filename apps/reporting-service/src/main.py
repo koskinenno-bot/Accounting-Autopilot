@@ -61,31 +61,47 @@ async def _get(path: str, params: Dict, authorization: Optional[str]):
             raise HTTPException(status_code=503, detail=f"Kirjanpitopalvelua ei tavoiteta: {e}")
 
 
-async def resolve_fiscal_year(company_id: str, fiscal_year_id: Optional[str], authorization: Optional[str]) -> Optional[Dict]:
-    """Pyydetty tilikausi tai oletuksena avoin (uusin) tilikausi. Raportit lasketaan aina yhdeltä
-    kaudelta: seuraavan kauden avausvienti sisältää jo edellisen saldot (muuten tase kahdentuisi)."""
+async def resolve_fiscal_years(company_id: str, fiscal_year_id: Optional[str],
+                               authorization: Optional[str]) -> Tuple[Optional[Dict], Optional[Dict]]:
+    """Pyydetty tilikausi (oletuksena vanhin avoin, muuten uusin) ja sitä edeltävä tilikausi vertailutiedoiksi
+    (KPL 3:1a §). Raportit lasketaan aina yhdeltä kaudelta: seuraavan kauden avausvienti sisältää jo
+    edellisen saldot (muuten tase kahdentuisi)."""
     years = await _get("/accounting/fiscal-years", {"companyId": company_id}, authorization)
     if fiscal_year_id:
         fy = next((y for y in years if y["id"] == fiscal_year_id), None)
         if not fy:
             raise HTTPException(status_code=404, detail="Tilikautta ei löydy")
-        return fy
-    open_years = [y for y in years if y["status"] == "OPEN"]
-    candidates = open_years or years
-    return min(candidates, key=lambda y: y["startDate"]) if open_years else (max(candidates, key=lambda y: y["startDate"]) if candidates else None)
+    else:
+        open_years = [y for y in years if y["status"] == "OPEN"]
+        fy = (min(open_years, key=lambda y: y["startDate"]) if open_years
+              else max(years, key=lambda y: y["startDate"]) if years else None)
+    earlier = [y for y in years if fy and y["startDate"] < fy["startDate"]]
+    prev = max(earlier, key=lambda y: y["startDate"]) if earlier else None
+    return fy, prev
+
+
+async def resolve_fiscal_year(company_id: str, fiscal_year_id: Optional[str], authorization: Optional[str]) -> Optional[Dict]:
+    return (await resolve_fiscal_years(company_id, fiscal_year_id, authorization))[0]
+
+
+async def fetch_full_ledger(company_id: str, include_drafts: bool, authorization: Optional[str]) -> List[Dict]:
+    params = {"companyId": company_id}
+    if not include_drafts:
+        params["status"] = POSTED_STATUSES
+    return await _get("/accounting/ledger", params, authorization)
+
+
+def within(ledger: List[Dict], fiscal_year: Optional[Dict]) -> List[Dict]:
+    """Rajaus päivämäärällä (myös luonnokset, joilta tilikausi-id puuttuu)."""
+    if not fiscal_year:
+        return ledger
+    start, end = fiscal_year["startDate"][:10], fiscal_year["endDate"][:10]
+    return [e for e in ledger if start <= e["entryDate"][:10] <= end]
 
 
 async def fetch_ledger(company_id: str, fiscal_year: Optional[Dict], include_drafts: bool,
                        authorization: Optional[str]) -> List[Dict]:
-    params = {"companyId": company_id}
-    if not include_drafts:
-        params["status"] = POSTED_STATUSES
-    ledger = await _get("/accounting/ledger", params, authorization)
-    if not fiscal_year:
-        return ledger
-    # Rajaus päivämäärällä (myös luonnokset, joilta tilikausi-id puuttuu)
-    start, end = fiscal_year["startDate"][:10], fiscal_year["endDate"][:10]
-    return [e for e in ledger if start <= e["entryDate"][:10] <= end]
+    return within(await fetch_full_ledger(company_id, include_drafts, authorization), fiscal_year)
 
 
 def _without_closing(ledger: List[Dict]) -> List[Dict]:
@@ -116,18 +132,33 @@ async def health():
     return {"status": "ok", "service": "reporting-service"}
 
 
-async def _build(kind: str, company_id: str, fiscal_year_id: Optional[str], include_drafts: bool,
-                 authorization: Optional[str]) -> Tuple[Dict, Optional[Dict]]:
-    fy = await resolve_fiscal_year(company_id, fiscal_year_id, authorization)
-    ledger = await fetch_ledger(company_id, fy, include_drafts, authorization)
+def _report(kind: str, ledger: List[Dict], names: Dict[str, str], prev_ledger: Optional[List[Dict]]) -> Dict:
     if kind == "maintenance-calculation":
         flows = _without_closing(ledger)
         data = build_maintenance_calculation(account_balances(flows), loan_repayments(flows))
-    else:
-        names = await fetch_account_names(company_id, authorization)
-        data = (build_income_statement(account_balances(_without_closing(ledger)), names) if kind == "income-statement"
-                else build_balance_sheet(account_balances(ledger), names))
-    return {**data, "fiscalYear": fy}, fy
+        if prev_ledger is not None:
+            prev_flows = _without_closing(prev_ledger)
+            data["previous"] = build_maintenance_calculation(account_balances(prev_flows), loan_repayments(prev_flows))
+        return data
+    if kind == "income-statement":
+        prev = account_balances(_without_closing(prev_ledger)) if prev_ledger is not None else None
+        return build_income_statement(account_balances(_without_closing(ledger)), names, prev)
+    prev = account_balances(prev_ledger) if prev_ledger is not None else None
+    return build_balance_sheet(account_balances(ledger), names, prev)
+
+
+async def _build(kind: str, company_id: str, fiscal_year_id: Optional[str], include_drafts: bool,
+                 authorization: Optional[str]) -> Tuple[Dict, Optional[Dict]]:
+    fy, prev_fy = await resolve_fiscal_years(company_id, fiscal_year_id, authorization)
+    full = await fetch_full_ledger(company_id, include_drafts, authorization)
+    ledger = within(full, fy)
+    prev_ledger = within(full, prev_fy) if prev_fy else None
+    # Edellinen kausi vertailuksi vain, jos sille on kirjauksia (ensimmäisellä kaudella sarake jää pois)
+    if prev_ledger is not None and not prev_ledger:
+        prev_ledger, prev_fy = None, None
+    names = {} if kind == "maintenance-calculation" else await fetch_account_names(company_id, authorization)
+    data = _report(kind, ledger, names, prev_ledger)
+    return {**data, "fiscalYear": fy, "previousFiscalYear": prev_fy}, fy
 
 
 @app.get("/api/v1/reports/income-statement")
@@ -159,7 +190,7 @@ async def get_report_pdf(companyId: str, report: str, fiscalYearId: Optional[str
         raise HTTPException(status_code=400, detail="report: income-statement, balance-sheet tai maintenance-calculation")
     data, fy = await _build(report, companyId, fiscalYearId, False, authorization)
     company = await fetch_company_name(companyId, authorization)
-    pdf = render_report(report, data, company, fy)
+    pdf = render_report(report, data, company, fy, data.get("previousFiscalYear"))
     year = fy["endDate"][:4] if fy else "kaikki"
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{report}-{year}.pdf"'})

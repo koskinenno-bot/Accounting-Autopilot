@@ -4,6 +4,7 @@ import * as fiscal from '../controllers/fiscalController';
 import { getOverview } from '../controllers/overviewController';
 import { getQueue, updateTask } from '../controllers/queueController';
 import { getAccounts } from '../services/chartOfAccountsService';
+import { createAccount, updateAccount } from '../controllers/accountController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -45,5 +46,9 @@ router.get('/accounts', company, (async (req: Request, res: Response) => {
   if (!companyId) return res.status(400).json({ error: 'companyId is required' });
   return res.json(await getAccounts(companyId as string));
 }) as any);
+
+// Tilikartan muokkaus (vain isännöitsijä; tarkistus käsittelijässä)
+router.post('/accounts', createAccount as any);
+router.patch('/accounts/:id', updateAccount as any);
 
 export default router;

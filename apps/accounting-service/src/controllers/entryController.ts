@@ -7,6 +7,7 @@ import { assertCompanyAccess, serviceHeaders } from '../middleware/requireAuth';
 import { recordAccountChoice } from '../services/learningService';
 import { supplierKey } from '../purchaseMatching';
 import { ACCOUNTS } from '../accounts';
+import { inactiveAccountError } from '../services/chartOfAccountsService';
 
 const actorOf = (req: Request): string => (req as any).user?.userId || 'system';
 const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:3009/api/v1';
@@ -41,7 +42,7 @@ export const createEntry = async (req: Request, res: Response) => {
     }
 
     // Validate double-entry constraint (KPL 2:2 §)
-    const lineError = validateLines(lines);
+    const lineError = validateLines(lines) ?? (await inactiveAccountError(companyId, lines));
     if (lineError) {
       return res.status(400).json({ error: lineError });
     }
@@ -137,7 +138,7 @@ export const updateEntry = async (req: Request, res: Response) => {
 
     // Luonnoksen rivit voi korvata (esim. selvitettävien erien 1990 rivi oikealle tilille).
     if (lines !== undefined) {
-      const lineError = validateLines(lines);
+      const lineError = validateLines(lines) ?? (await inactiveAccountError(existing.companyId, lines));
       if (lineError) return res.status(400).json({ error: lineError });
     }
 

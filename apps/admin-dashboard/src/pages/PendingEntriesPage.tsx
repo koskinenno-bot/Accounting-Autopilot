@@ -159,7 +159,7 @@ const EntryCard = ({ entry, accounts, openInvoices, invoicesError, onDone }: {
                   {!accounts.some((a) => a.accountNumber === line.accountNumber) && (
                     <option value={line.accountNumber}>{line.accountNumber}</option>
                   )}
-                  {accounts.map((a) => (
+                  {accounts.filter((a) => a.isActive !== false || a.accountNumber === line.accountNumber).map((a) => (
                     <option key={a.accountNumber} value={a.accountNumber}>{a.accountNumber} {a.accountName}</option>
                   ))}
                 </select>
