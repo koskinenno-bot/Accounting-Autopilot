@@ -10,6 +10,7 @@ import * as closingPackage from '../controllers/closingPackageController';
 import * as migration from '../controllers/migrationController';
 import * as vat from '../controllers/vatController';
 import * as payroll from '../controllers/payrollController';
+import * as bankRecon from '../controllers/bankReconController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -104,5 +105,11 @@ router.get('/payroll/contracts', payroll.listContracts as any);
 router.post('/payroll/contracts', payroll.createContract as any);
 router.put('/payroll/contracts/:id', payroll.updateContract as any);
 router.delete('/payroll/contracts/:id', payroll.deleteContract as any);
+
+// Pankkitäsmäytys (käyttöoikeus tarkistetaan käsittelijässä)
+router.post('/bank-balances', bankRecon.saveBalance as any);
+router.delete('/bank-balances/:id', bankRecon.deleteBalance as any);
+router.get('/bank-reconciliation', bankRecon.getReconciliation as any);
+router.post('/bank-reconciliation/mark', bankRecon.markReconciled as any);
 
 export default router;

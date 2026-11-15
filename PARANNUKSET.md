@@ -480,6 +480,24 @@ puuttuivat. Nyt viestit lähtevät oikeasti SMTP:n kautta (nodemailer).
 - Testattu SMTP-testipalvelinta vasten: kirjautuminen, kaikki viestipohjat, väärä salasana, Redis pois ja takaisin.
   Yksikkötestit: notification-service 4.
 
+## Pankkitäsmäytys (15.11.2026)
+
+Uusi sivu **Pankkitäsmäytys** (valikossa Pankkiyhteyksien alla) vertaa joka kuukauden lopussa pankkitilien saldoa
+kirjanpidon rahatilien (1900–1989) saldoon. Tämä puuttui moduulista 6.
+
+- **Saldot tulevat automaattisesti**: pankkiyhteyden (Enable Banking) synkronointi tallentaa päivän saldon, ja
+  camt.053-tiliotteen tuonti tallentaa tiliotteen loppusaldon (CLBD). Jos kumpaakaan ei ole, kuukauden viimeisen
+  päivän saldo syötetään tiliotteelta käsin. Käsin syötetyn saldon voi poistaa, automaattista ei. Käyttäjä ei voi
+  merkitä käsin syötettyä saldoa pankista tulleeksi.
+- **Tila kuukausittain**: Täsmää, Ero (euroina), Pankkisaldo puuttuu tai Vanha saldo (yli 4 päivää vanha).
+  Usealla pankkitilillä verrataan tilien yhteissaldoa, ja kuukauden riviltä näkee tilikohtaiset saldot.
+- Sarake **Hyväksymättömät** näyttää kuukauden luonnosviennit. Jos ero on täsmälleen niiden suuruinen, sivu kertoo,
+  että ero selittyy niillä ja viennit pitää hyväksyä.
+- Täsmäävän kuukauden voi **merkitä täsmäytetyksi** (merkinnän voi perua). Eroavaa kuukautta ei voi merkitä.
+- IBAN tarkistetaan (tarkiste mod 97).
+- Testattu: käsin syötetty saldo, tiliotteen ja pankkiyhteyden saldo, virheellinen IBAN, ero ja sen esto merkinnässä.
+  Yksikkötestit: accounting-service 55, bank-service 21.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

@@ -424,3 +424,19 @@ model ReportMark {
 
   @@unique([companyId, kind, key])
 }
+
+/// Pankkitilin saldo päivältä (PSD2-haku, camt.053-tiliotteen loppusaldo tai käsin syötetty). Pankkitäsmäytys.
+model BankBalance {
+  id        String   @id @default(uuid())
+  companyId String
+  iban      String
+  date      DateTime
+  balance   Decimal  @db.Decimal(15, 2)
+  /// PSD2, CAMT tai MANUAL
+  source    String
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, iban, date])
+  @@index([companyId, date])
+}

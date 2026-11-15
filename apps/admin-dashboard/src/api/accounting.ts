@@ -364,3 +364,22 @@ export interface TaxReturnView {
 }
 export const getTaxReturn = async (fiscalYearId: string): Promise<TaxReturnView> =>
   (await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/tax-return`)).data;
+
+// --- Pankkitäsmäytys ---
+
+export interface ReconMonth {
+  key: string; date: string; current: boolean; bank: number; book: number; status: 'OK' | 'DIFFERENCE' | 'NO_BALANCE' | 'STALE';
+  difference: number | null; drafts: { count: number; net: number }; reconciledAt: string | null;
+  accounts: { iban: string; date: string; balance: number; source: string; stale: boolean }[];
+}
+export interface ReconView {
+  year: number; range: [string, string]; months: ReconMonth[];
+  balances: { id: string; iban: string; date: string; balance: number; source: string }[];
+}
+export const getBankReconciliation = async (companyId: string, year: number): Promise<ReconView> =>
+  (await accountingApi.get('/accounting/bank-reconciliation', { params: { companyId, year } })).data;
+export const saveBankBalance = async (companyId: string, iban: string, date: string, balance: number) =>
+  (await accountingApi.post('/accounting/bank-balances', { companyId, iban, date, balance, source: 'MANUAL' })).data;
+export const deleteBankBalance = async (id: string) => (await accountingApi.delete(`/accounting/bank-balances/${id}`)).data;
+export const markBankReconciled = async (companyId: string, key: string, reconciled: boolean) =>
+  (await accountingApi.post('/accounting/bank-reconciliation/mark', { companyId, key, reconciled })).data;

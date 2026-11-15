@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import { prisma } from '../db';
 import { assertCompanyAccess, serviceHeaders } from '../middleware/requireAuth';
+import { reportBalance } from '../services/balanceReport';
 import { BankApiError, EnableBankingClient, consentValidUntil, createClient, loadConfig } from '../services/enableBanking';
 import { syncAccount } from '../services/bankSync';
 import { publishBankStatementReceived } from '../utils/kafka';
@@ -86,6 +87,7 @@ export const syncConnection = async (connectionId: string, client: EnableBanking
             ...(r.balance != null ? { balance: r.balance, balanceAt: new Date() } : {}),
           },
         });
+        if (r.balance != null) await reportBalance(conn.companyId, acc.iban, new Date().toISOString().slice(0, 10), r.balance, 'PSD2');
       } catch (err: any) {
         errors.push(`${acc.iban || acc.name || acc.uid}: ${err.message}`);
         if (err instanceof BankApiError && (err.status === 401 || /expired|EXPIRED|revoked|REVOKED/.test(`${err.code} ${err.message}`))) {

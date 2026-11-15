@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Import, FileCheck, Calculator, Building2, Inbox, BookOpen, UserCog, Eye, ListTodo, ListTree, Wallet, Receipt, Landmark, Percent, Banknote } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Import, FileCheck, Calculator, Building2, Inbox, BookOpen, UserCog, Eye, ListTodo, ListTree, Wallet, Receipt, Landmark, Percent, Banknote, Scale } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -60,6 +60,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { icon: BookOpen, label: 'Pääkirja', path: '/ledger', show: true },
     { icon: ListTree, label: 'Tilikartta', path: '/accounts', show: true },
     { icon: Landmark, label: 'Pankkiyhteydet', path: '/bank-connections', show: true },
+    { icon: Scale, label: 'Pankkitäsmäytys', path: '/bank-reconciliation', show: true },
     { icon: Import, label: 'Siirto vanhasta', path: '/migration', show: canWrite },
     { icon: FileText, label: t('nav.financialStatements'), path: '/reports', show: true },
     { icon: ArrowRightLeft, label: t('reports.vastikelaskelma'), path: '/reports/vastike', show: true },

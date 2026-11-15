@@ -67,3 +67,20 @@ export const parseCamt053 = (xmlData: string): BankTransaction[] => {
     };
   });
 };
+
+/** Tiliotteen loppusaldo (CLBD) ja tilin IBAN. Palauttaa null, jos tiliotteella ei ole loppusaldoa. */
+export const parseCamtClosingBalance = (xmlData: string): { iban: string; date: string; amount: number } | null => {
+  const parser = new XMLParser({ ignoreAttributes: false, removeNSPrefix: true, parseTagValue: false });
+  const stmt = parser.parse(xmlData).Document?.BkToCstmrStmt?.Stmt;
+  const s = Array.isArray(stmt) ? stmt[0] : stmt;
+  const iban = s?.Acct?.Id?.IBAN;
+  const bals = Array.isArray(s?.Bal) ? s.Bal : [s?.Bal].filter(Boolean);
+  const clbd = bals.find((b: any) => (b?.Tp?.CdOrPrtry?.Cd ?? b?.Tp?.CdOrPrtry?.Prtry) === 'CLBD');
+  if (!iban || !clbd) return null;
+  const raw = Number(clbd.Amt?.['#text'] ?? clbd.Amt);
+  if (!Number.isFinite(raw)) return null;
+  const amount = clbd.CdtDbtInd === 'DBIT' ? -raw : raw;
+  const date = String(clbd.Dt?.Dt ?? clbd.Dt?.DtTm ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return { iban: String(iban).replace(/\s/g, ''), date, amount };
+};

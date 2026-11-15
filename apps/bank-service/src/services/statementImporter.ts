@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BankTransaction, parseCamt053 } from './camtParser';
+import { BankTransaction, parseCamt053, parseCamtClosingBalance } from './camtParser';
 import { assignEntryRefs, CsvFormatError, decodeStatement, parseBankCsv } from './csvParser';
 import { publishBankStatementReceived } from '../utils/kafka';
 import { serviceHeaders } from '../middleware/requireAuth';
+import { reportBalance } from './balanceReport';
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001/api/v1';
 
@@ -76,9 +77,16 @@ export const importStatement = async (companyId: string, buffer: Buffer, filenam
     data: { companyId, bankAccountId, transactions },
   });
 
+  // camt.053: loppusaldo pankkitäsmäytykseen
+  let closingBalance: { iban: string; date: string; amount: number } | null = null;
+  if (format === 'camt053') {
+    closingBalance = parseCamtClosingBalance(decodeStatement(buffer));
+    if (closingBalance) await reportBalance(companyId, closingBalance.iban, closingBalance.date, closingBalance.amount, 'CAMT');
+  }
+
   const incoming = transactions.filter((tx) => tx.creditDebit === 'CRDT');
   return {
-    format,
+    format, closingBalance,
     transactionCount: transactions.length,
     results: {
       totalTransactions: transactions.length,
