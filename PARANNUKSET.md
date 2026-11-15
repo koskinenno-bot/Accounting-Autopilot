@@ -310,6 +310,24 @@ Rajapinnat: accounting-service `GET|PUT /accounting/fiscal-years/:id/closing-pac
 Uudet taulut: ClosingPackage, BudgetLine. Logiikka `apps/reporting-service/src/closing.py` ja `closing_pdf.py`,
 testit `tests/test_closing.py`.
 
+## Siirto vanhasta järjestelmästä (moduuli 11, 15.11.2026)
+
+Dashboard → **Siirto vanhasta** (isännöitsijä ja assistentti; siirron tekee isännöitsijä):
+
+1. **Saldoluettelo** vanhasta kirjanpito-ohjelmasta viimeiseltä suljetulta tilikaudelta: tiedosto (myös Windows-1252)
+   tai Excelistä kopioitu taulukko. Sarakkeet tili;nimi;saldo tai tili;nimi;debet;kredit. Etumerkki valitaan
+   (kredit miinuksella tai tuotot/velat positiivisina). Summat 1 234,56, 1.234,56 ja 99,90- tunnistetaan.
+2. **Tilien mäppäys:** ehdotus tallennetusta valinnasta, samasta tilinumerosta tai nimestä samassa tililuokassa
+   (taloyhtiötermien rinnakkaisnimet, esim. rahoitusvastikkeet → pääomavastikkeet). Valinnat tallentuvat yhtiölle.
+   Luettelon on täsmättävä (debet = kredit).
+3. **Vertailukausi ja avaustase:** saldot kirjataan suljetuksi vertailutilikaudeksi (tosite SIIRTO-vuosi), joten
+   tuloslaskelmaan, taseeseen ja vastikelaskelmaan tulee edellisen vuoden sarake. Samalla voi kirjata seuraavan
+   tilikauden avaustaseen (tulos siirtyy edellisten tilikausien voittoon). Siirron voi perua, kun seuraava kausi on avoinna.
+
+Rajapinnat (accounting-service): `GET /accounting/migration`, `POST /accounting/migration/preview`,
+`POST /accounting/migration/import`, `DELETE /accounting/migration/:fiscalYearId`. Uusi taulu AccountMapping.
+Logiikka `apps/accounting-service/src/migration.ts`, testit `test/migration.test.ts`.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

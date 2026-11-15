@@ -286,3 +286,15 @@ model BudgetLine {
   @@unique([fiscalYearId, accountNumber])
   @@index([companyId])
 }
+
+/// Vanhan kirjanpitojärjestelmän tilin vastine yhtiön tilikartassa (siirto vanhasta, moduuli 11).
+model AccountMapping {
+  id             String   @id @default(uuid())
+  companyId      String
+  sourceAccount  String
+  sourceName     String?
+  targetAccount  String
+  updatedAt      DateTime @updatedAt
+
+  @@unique([companyId, sourceAccount])
+}

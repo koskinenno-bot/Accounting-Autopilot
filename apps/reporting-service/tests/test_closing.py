@@ -70,6 +70,13 @@ class ClosingTests(unittest.TestCase):
         self.assertFalse(rows["2100"]["openingMismatch"])
         self.assertFalse(rows["2200"]["openingMismatch"])
 
+    def test_migrated_year_result_on_income_accounts(self):
+        # Vertailuvuosi siirretty saldoluettelona: tulos 300 on tuotto- ja kulutileillä, ei tilillä 2200
+        ledger = [entry("2026-01-01", "AV-1", ("1910", "500", "0"), ("2100", "0", "500"), kind="OPENING")]
+        prev = {"1910": 50000, "2100": -20000, "3000": -40000, "4000": 10000}
+        rows = {r["account"]: r for r in balance_details(ledger, prev, NAMES, {})}
+        self.assertFalse(rows["2100"]["openingMismatch"])
+
     def test_budget_signs_and_comparison(self):
         self.assertEqual(budget_balances([{"accountNumber": "3000", "amount": 100}, {"accountNumber": "4500", "amount": 40}]),
                          {"3000": -10000, "4500": 4000})

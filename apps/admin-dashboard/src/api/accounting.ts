@@ -291,3 +291,28 @@ export const getBudget = async (fiscalYearId: string) =>
   (await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/budget`)).data as BudgetData;
 export const saveBudget = async (fiscalYearId: string, lines: { accountNumber: string; amount: number }[]) =>
   (await accountingApi.put(`/accounting/fiscal-years/${fiscalYearId}/budget`, { lines })).data as { saved: number };
+
+// --- Siirto vanhasta järjestelmästä (moduuli 11) ---
+
+export type SignMode = 'DEBIT_POSITIVE' | 'NATURAL';
+export interface MigrationRow {
+  line: number; sourceAccount: string; sourceName: string; amount: number;
+  targetAccount: string | null; targetName: string | null; how: 'saved' | 'number' | 'name' | null;
+}
+export interface MigrationDone { fiscalYearId: string; voucherNumber: string; createdAt: string; startDate: string | null; endDate: string | null; accounts: number }
+export interface MigrationPreview {
+  rows: MigrationRow[]; errors: string[]; warnings: string[];
+  totals: { debit: number; credit: number; difference: number; result: number };
+  accounts: { accountNumber: string; accountName: string; isActive: boolean }[];
+  suggestedPeriod: { startDate: string; endDate: string } | null;
+  migrated: MigrationDone[];
+}
+export const getMigrations = async (companyId: string) =>
+  (await accountingApi.get('/accounting/migration', { params: { companyId } })).data as { migrated: MigrationDone[]; mappings: number };
+export const previewMigration = async (companyId: string, text: string, signMode: SignMode) =>
+  (await accountingApi.post('/accounting/migration/preview', { companyId, text, signMode })).data as MigrationPreview;
+export const importMigration = async (body: {
+  companyId: string; text: string; signMode: SignMode; mapping: Record<string, string>; startDate: string; endDate: string; createOpening: boolean;
+}) => (await accountingApi.post('/accounting/migration/import', body)).data as { lines: number; result: number; mappings: number; openingEntryId: string | null };
+export const undoMigration = async (fiscalYearId: string) =>
+  (await accountingApi.delete(`/accounting/migration/${fiscalYearId}`)).data;

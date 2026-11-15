@@ -7,6 +7,7 @@ import { getAccounts } from '../services/chartOfAccountsService';
 import { createAccount, updateAccount } from '../controllers/accountController';
 import * as purchases from '../controllers/purchaseController';
 import * as closingPackage from '../controllers/closingPackageController';
+import * as migration from '../controllers/migrationController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -58,6 +59,11 @@ router.post('/accounts', createAccount as any);
 router.patch('/accounts/:id', updateAccount as any);
 
 // Ostolaskujen hyväksyntä ja maksuaineistot (käyttöoikeus tarkistetaan käsittelijässä)
+router.get('/migration', migration.listMigrations as any);
+router.post('/migration/preview', migration.previewMigration as any);
+router.post('/migration/import', migration.importMigration as any);
+router.delete('/migration/:fiscalYearId', migration.undoMigration as any);
+
 router.get('/purchases', purchases.listPurchases as any);
 router.put('/purchases/policy', purchases.updatePolicy as any);
 router.post('/purchases/:id/decision', purchases.decide as any);

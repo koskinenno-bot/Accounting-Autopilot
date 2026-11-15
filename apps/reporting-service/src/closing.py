@@ -78,6 +78,10 @@ def balance_details(ledger: List[Dict], prev_balances: Optional[Dict[str, int]],
     carried = dict(prev_balances or {})
     if RESULT_ACCOUNT in carried:
         carried[RETAINED_EARNINGS] = carried.get(RETAINED_EARNINGS, 0) + carried.pop(RESULT_ACCOUNT)
+    # Siirretyllä vertailuvuodella tulos on vielä tulostileillä (ei tilinpäätösvientiä)
+    unbooked = sum(c for a, c in carried.items() if 3000 <= _num(a) <= 9999)
+    if unbooked:
+        carried[RETAINED_EARNINGS] = carried.get(RETAINED_EARNINGS, 0) + unbooked
     rows = []
     for acc in sorted(set(opening) | set(debit) | set(credit) | prev_accounts):
         sign = 1 if _num(acc) < 2000 else -1
