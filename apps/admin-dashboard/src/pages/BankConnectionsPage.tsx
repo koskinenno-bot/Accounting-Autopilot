@@ -33,7 +33,7 @@ const BankConnectionsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: loadError } = useQuery({
     queryKey: ['bankConnections', companyId], queryFn: () => getBankConnections(companyId!), enabled: !!companyId,
   });
   const aspsps = useQuery({ queryKey: ['aspsps'], queryFn: () => getAspsps('FI'), enabled: !!data?.configured && canManage, staleTime: 3600_000 });
@@ -81,6 +81,14 @@ const BankConnectionsPage = () => {
       </div>
 
       {isLoading && <div className="glass-card h-40 animate-pulse" />}
+      {loadError && (
+        <div className="glass-card p-5 border border-rose-500/30 text-sm space-y-1">
+          <div className="flex items-center gap-2 font-semibold text-rose-300"><AlertTriangle size={18} />Pankkiyhteyksiä ei saatu haettua</div>
+          <div className="text-slate-300">
+            {(loadError as any)?.response ? errText(loadError) : 'Pankkipalvelu (bank-service, portti 3005) ei vastaa. Tarkista bank-service-ikkunan virheilmoitus tai aja KAYNNISTA.bat uudelleen.'}
+          </div>
+        </div>
+      )}
 
       {data && !data.configured && (
         <div className="glass-card p-5 space-y-2 border border-amber-500/30">
