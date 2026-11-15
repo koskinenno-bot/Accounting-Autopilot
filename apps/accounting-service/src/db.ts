@@ -23,7 +23,8 @@ const AUDIT_ACTION_MAP: Record<string, 'CREATE' | 'UPDATE' | 'DELETE'> = {
   deleteMany: 'DELETE',
 };
 
-const SENSITIVE_MODELS = ['AccountingEntry', 'AccountingLine', 'FiscalYear', 'Account'];
+// Payee jätetään pois: muutoslokiin ei viedä henkilötunnuksia.
+const SENSITIVE_MODELS = ['AccountingEntry', 'AccountingLine', 'FiscalYear', 'Account', 'PayrollRun', 'PayrollSettings', 'ConstructionContract'];
 
 // --- KPL 2:6 § Compliance Middleware (Automated Audit Trail) ---
 prisma.$use(async (params: any, next: any) => {

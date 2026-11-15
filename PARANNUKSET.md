@@ -421,6 +421,44 @@ Taloyhtiö on yleensä arvonlisäverovelvollinen vain, jos se on hakeutunut vero
   (Verohallinnon rajapintapalvelu, "Ilmoitustiedostojen lähetys"). Tehdään, kun tuotteella on oma yritys.
 - Yksikkötestit: accounting-service 46 (ALV-laskenta, kaudet, Ilmoitin-tiedosto, Y-tunnus, veroilmoitus 4).
 
+## Palkat, tulorekisteri ja urakkatiedot (moduuli 9, 15.11.2026)
+
+Sivu **Palkat**. Taloyhtiön tavalliset suoritukset ovat hallituksen kokouspalkkiot, puheenjohtajan palkkio ja pienet
+palkat (esim. talonmies). Isännöintitoimiston lasku on työkorvausta ja kulkee ostolaskuna kuten ennenkin.
+
+### Palkansaajat ja palkanmaksu
+- Palkansaajalle tallennetaan henkilötunnus (tarkiste tarkistetaan), verokortti (pidätysprosentti, lisäprosentti,
+  tuloraja ja vuosi), tilinumero sekä oletustulolaji ja -summa. Henkilötunnus näytetään aina peitettynä
+  (`150570-****`), eikä sitä viedä muutoslokiin.
+- Tulolajit ja vakuuttaminen tulorekisterin koodiston mukaan:
+  201 aikapalkka (TyEL, työttömyys, sairausvakuutus, tapaturma), 210 kokouspalkkio (ei maksuja),
+  215 luottamustoimipalkkio (vain sairausvakuutus), 308 hallintoelimen jäsenen palkkio (ei maksuja).
+- Ennakonpidätys verokortin mukaan, tulorajan ylittävältä osalta lisäprosentilla (saman vuoden aiemmat maksut
+  huomioidaan). Ilman verokorttia 60 %.
+- Maksut 2026 (asetuksissa muutettavissa): TyEL 25,85 % (tilapäinen työnantaja; sopimuksella vakuutusyhtiön prosentti),
+  työntekijän TyEL 7,30 %, työttömyysvakuutus 0,31 % / 0,89 %, työnantajan sv-maksu 1,91 %, tapaturma vakuutusyhtiön mukaan.
+  Ikärajat: TyEL 17–67, työttömyysvakuutus 17–64, sv-maksu 16–67 v (henkilötunnuksesta). TyEL-alaraja 71,72 €/kk.
+- **Hyväksy ja kirjaa** (isännöitsijä): vienti maksupäivälle (`PALKKA-<nro>`): D 4010 palkat, D 4020 sivukulut,
+  K 2840 nettopalkat, K 2850 ennakonpidätys ja sv-maksu, K 2855 TyEL ja työttömyysvakuutus. Laskelma lukitaan.
+  Kun nettopalkat maksetaan pankista, maksu tiliöidään tilille 2840.
+
+### Tulorekisteri
+- Välilehti **Tulorekisteri** näyttää jokaisesta maksupäivästä palkkatietoilmoituksen tiedot (tulolajit, 402, 413, 414,
+  vakuuttaminen) ja määräpäivän (5 päivää maksupäivästä), sekä kuukausittain työnantajan erillisilmoituksen
+  (sv-maksu, määräpäivä seuraavan kuun 5.) ja Verohallinnolle maksettavan summan (12. päivä).
+- Ilmoitukset annetaan toistaiseksi tulorekisterin asiointipalvelussa käsin, ja ne merkitään sivulla annetuiksi.
+  Suora lähetys rajapinnalla vaatii tulorekisterin käyttöoikeuden ja varmenteen ohjelmistotoimittajalle (oma yritys).
+
+### Rakentamisen urakkatiedot
+- Välilehti **Urakkatiedot**: taloyhtiön tilaamat rakennusurakat (urakoitsija, Y-tunnus, työmaa, arvo alv 0, aika).
+  Yli 15 000 € urakat näkyvät kuukauden ilmoituksessa, kun urakka alkaa tai urakoitsija laskuttaa. Laskutettu määrä
+  lasketaan saman Y-tunnuksen ostolaskuista. Määräpäivä on raportointikuukautta seuraavan toisen kuukauden 5. päivä.
+  Ilmoitus annetaan OmaVerossa.
+
+- Rajapinnat (accounting 3002): `/accounting/payroll/settings`, `/payees`, `/runs` (`/:id/post`, `/:id/reported`),
+  `/reports`, `/reports/mark`, `/contracts`, `/contracts/report`.
+- Yksikkötestit: accounting-service 53 (henkilötunnus, ennakonpidätys, maksut, ikärajat, määräpäivät, urakkatiedot).
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

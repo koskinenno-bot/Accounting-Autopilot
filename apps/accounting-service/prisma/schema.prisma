@@ -313,3 +313,114 @@ model VatSettings {
   updatedBy        String?
   updatedAt        DateTime @updatedAt
 }
+
+/// Palkanmaksun asetukset (moduuli 9). Prosentit; tyelTotal sisältää työntekijän osuuden.
+model PayrollSettings {
+  companyId            String   @id
+  tyelTotal            Decimal  @db.Decimal(5, 2) @default(25.85)
+  tyelEmployee         Decimal  @db.Decimal(5, 2) @default(7.30)
+  unemploymentEmployer Decimal  @db.Decimal(5, 2) @default(0.31)
+  unemploymentEmployee Decimal  @db.Decimal(5, 2) @default(0.89)
+  healthEmployer       Decimal  @db.Decimal(5, 2) @default(1.91)
+  accident             Decimal  @db.Decimal(5, 2) @default(0)
+  tyelInsurer          String?
+  tyelPolicy           String?
+  updatedBy            String?
+  updatedAt            DateTime @updatedAt
+}
+
+/// Palkan tai palkkion saaja (hallituksen jäsen, talonmies). Henkilötunnus tulorekisteri-ilmoitusta varten.
+model Payee {
+  id                   String   @id @default(uuid())
+  companyId            String
+  name                 String
+  hetu                 String?
+  iban                 String?
+  role                 String?
+  /// Verokortti: perusprosentti, lisäprosentti ja tuloraja (vuodelle taxCardYear). Tyhjä = ei verokorttia (60 %).
+  taxPercent           Decimal? @db.Decimal(5, 2)
+  taxAdditionalPercent Decimal? @db.Decimal(5, 2)
+  taxIncomeLimit       Decimal? @db.Decimal(15, 2)
+  taxCardYear          Int?
+  defaultIncomeType    String   @default("210")
+  defaultAmount        Decimal? @db.Decimal(15, 2)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  items                PayrollItem[]
+
+  @@index([companyId])
+}
+
+/// Palkanmaksu (yksi maksupäivä). DRAFT → POSTED (kirjanpitovienti tehty, laskelma lukittu).
+model PayrollRun {
+  id                String    @id @default(uuid())
+  companyId         String
+  number            Int
+  payDate           DateTime
+  periodStart       DateTime
+  periodEnd         DateTime
+  description       String
+  status            String    @default("DRAFT")
+  accountingEntryId String?
+  /// Lukittu laskelma kirjaushetkellä (summat ja palkansaajakohtaiset erät)
+  result            Json?
+  wageReportedAt    DateTime?
+  wageReportedBy    String?
+  createdBy         String?
+  createdAt         DateTime  @default(now())
+  postedAt          DateTime?
+  postedBy          String?
+
+  items             PayrollItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId, payDate])
+}
+
+model PayrollItem {
+  id          String     @id @default(uuid())
+  runId       String
+  payeeId     String
+  incomeType  String
+  amount      Decimal    @db.Decimal(15, 2)
+  description String?
+
+  run         PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  payee       Payee      @relation(fields: [payeeId], references: [id])
+
+  @@index([runId])
+}
+
+/// Rakennusurakka, josta annetaan urakkatiedot Verohallinnolle (arvo yli 15 000 € alv 0).
+model ConstructionContract {
+  id                   String    @id @default(uuid())
+  companyId            String
+  contractorName       String
+  contractorBusinessId String
+  siteName             String
+  siteAddress          String?
+  description          String?
+  value                Decimal   @db.Decimal(15, 2)
+  /// URAKKA tai TUNTI
+  billingBasis         String    @default("URAKKA")
+  startDate            DateTime
+  endDate              DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([companyId])
+}
+
+/// Merkintä annetusta ilmoituksesta: EMPLOYER (erillisilmoitus, avain 2026-11) tai CONTRACTS (urakkatiedot, 2026-11).
+model ReportMark {
+  id         String   @id @default(uuid())
+  companyId  String
+  kind       String
+  key        String
+  reportedAt DateTime @default(now())
+  reportedBy String?
+
+  @@unique([companyId, kind, key])
+}

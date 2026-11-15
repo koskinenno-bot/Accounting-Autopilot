@@ -9,6 +9,7 @@ import * as purchases from '../controllers/purchaseController';
 import * as closingPackage from '../controllers/closingPackageController';
 import * as migration from '../controllers/migrationController';
 import * as vat from '../controllers/vatController';
+import * as payroll from '../controllers/payrollController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -82,5 +83,26 @@ router.get('/payment-batches', purchases.listBatches as any);
 router.post('/payment-batches', purchases.createBatch as any);
 router.get('/payment-batches/:id/xml', purchases.downloadBatch as any);
 router.patch('/payment-batches/:id', purchases.updateBatch as any);
+
+// Palkat, tulorekisteri ja urakkatiedot (moduuli 9; käyttöoikeus tarkistetaan käsittelijässä)
+router.get('/payroll/settings', payroll.getSettings as any);
+router.put('/payroll/settings', payroll.updateSettings as any);
+router.get('/payroll/payees', payroll.listPayees as any);
+router.post('/payroll/payees', payroll.createPayee as any);
+router.patch('/payroll/payees/:id', payroll.updatePayee as any);
+router.get('/payroll/runs', payroll.listRuns as any);
+router.post('/payroll/runs', payroll.createRun as any);
+router.get('/payroll/runs/:id', payroll.getRun as any);
+router.put('/payroll/runs/:id', payroll.updateRun as any);
+router.delete('/payroll/runs/:id', payroll.deleteRun as any);
+router.post('/payroll/runs/:id/post', payroll.postRun as any);
+router.post('/payroll/runs/:id/reported', payroll.markRunReported as any);
+router.get('/payroll/reports', payroll.getReports as any);
+router.post('/payroll/reports/mark', payroll.markReport as any);
+router.get('/payroll/contracts/report', payroll.getContractReport as any);
+router.get('/payroll/contracts', payroll.listContracts as any);
+router.post('/payroll/contracts', payroll.createContract as any);
+router.put('/payroll/contracts/:id', payroll.updateContract as any);
+router.delete('/payroll/contracts/:id', payroll.deleteContract as any);
 
 export default router;
