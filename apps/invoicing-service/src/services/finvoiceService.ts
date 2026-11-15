@@ -26,7 +26,7 @@ export interface FinvoiceData {
  * This is a simplified version focusing on core mandatory fields.
  */
 export const generateFinvoiceXml = (data: FinvoiceData): string => {
-  const root = create({ version: '1.0', encoding: 'ISO-8859-15' })
+  const root = create({ version: '1.0', encoding: 'UTF-8' })
     .ele('Finvoice', { 
       'Version': '3.0',
       'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',

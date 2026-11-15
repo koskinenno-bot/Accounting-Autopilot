@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const NOTIFICATION_SERVICE_URL = import.meta.env.VITE_NOTIFICATION_SERVICE_URL || 'http://localhost:3008/api/v1';
+const NOTIFICATION_SERVICE_URL = import.meta.env.VITE_NOTIFICATION_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3008/api/v1';
 
 export const notificationsApi = axios.create({
   baseURL: NOTIFICATION_SERVICE_URL,

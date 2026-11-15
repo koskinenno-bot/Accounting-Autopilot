@@ -10,7 +10,8 @@ const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:300
  * audit-middleware (KPL 2:6 §) koski vain index.ts:n instanssia eikä
  * yhtään oikeaa kirjausta. Lisäksi useat instanssit avaavat turhia yhteyksiä.
  */
-export const prisma = new PrismaClient();
+// Yhden prosessin tilassa (apps/server) palvelun kanta on ACCOUNTING_DATABASE_URL, muuten DATABASE_URL
+export const prisma = new PrismaClient({ datasourceUrl: process.env.ACCOUNTING_DATABASE_URL || undefined });
 
 // Audit-palvelun AuditAction-enum tuntee vain nämä kolme arvoa.
 const AUDIT_ACTION_MAP: Record<string, 'CREATE' | 'UPDATE' | 'DELETE'> = {

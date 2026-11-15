@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { PrismaClient, AuditAction } from '../../prisma/client';
 import { nextTimestamp, recordHash, verifyChain } from '../chain';
 
-export const prisma = new PrismaClient();
+export const prisma = new PrismaClient({ datasourceUrl: process.env.AUDIT_DATABASE_URL || undefined });
 
 const ACTIONS: string[] = Object.values(AuditAction);
 

@@ -10,12 +10,15 @@ venv/
 .env
 .env.*
 !.env.example
+!apps/admin-dashboard/.env.single
 * .env
 
 # Paikalliset tietokannat ja ladatut tiedostot
 *.db
 *.db-journal
 uploads/
+apps/voucher-service/files/
+apps/notification-service/outbox/
 
 # Generoidut Prisma-clientit (luo: npm run prisma:generate)
 apps/*/prisma/client/

@@ -10,7 +10,13 @@ mkdir -p "$DIR"
 umask 077
 
 docker exec ai-accountant-postgres pg_dumpall -U admin --clean --if-exists | gzip > "$DIR/kannat.sql.gz"
-docker exec ai-accountant-minio tar czf - -C /bitnami/minio data > "$DIR/minio.tgz"
+if [ -n "$(docker ps -q -f name=ai-accountant-minio)" ]; then
+  docker exec ai-accountant-minio tar czf - -C /bitnami/minio data > "$DIR/minio.tgz"
+fi
+# Yhden prosessin palvelin tallentaa tositteet levylle
+if [ -d "$ROOT/apps/voucher-service/files" ]; then
+  tar czf "$DIR/tositteet.tgz" -C "$ROOT/apps/voucher-service" files
+fi
 if [ -d "$ROOT/apps/document-service/uploads" ]; then
   tar czf "$DIR/dokumentit.tgz" -C "$ROOT/apps/document-service" uploads
 fi

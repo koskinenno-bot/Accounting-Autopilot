@@ -2,7 +2,9 @@
 # Käyttö (PowerShell, projektikansiossa):
 #   powershell -ExecutionPolicy Bypass -File .\kaynnista.ps1
 # Valinnaiset: -SkipInstall (ohita npm/pip install), -SkipDb (ohita prisma-vaiheet)
-param([switch]$SkipInstall, [switch]$SkipDb)
+#   -Kevyt: kaikki palvelut yhdessä ikkunassa ja portissa 3000, Dockerista vain Postgres ja MinIO
+#           (ei Kafkaa, Kongia eikä Redistä). Sama kuin KAYNNISTA-KEVYT.bat. Ilman tätä käynnistys toimii kuten ennen.
+param([switch]$SkipInstall, [switch]$SkipDb, [switch]$Kevyt)
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -17,8 +19,14 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host 'Docker ei ole käynnissä. Käynnistä Docker Desktop ja aja skripti uudelleen.' -ForegroundColor Red
   exit 1
 }
-Step 'Käynnistetään Postgres, Kafka, Redis, MinIO ja Kong'
-docker compose up -d
+if ($Kevyt) {
+  # MinIO vain vanhoja tositteita varten; uudet tositteet tallentuvat levylle
+  Step 'Käynnistetään Postgres ja MinIO (kevyt tila)'
+  docker compose up -d postgres minio
+} else {
+  Step 'Käynnistetään Postgres, Kafka, Redis, MinIO ja Kong'
+  docker compose up -d
+}
 if ($LASTEXITCODE -ne 0) { throw 'docker compose up epäonnistui' }
 
 Write-Host 'Odotetaan Postgresia...'
@@ -64,6 +72,22 @@ if (-not $SkipDb) {
     if ($LASTEXITCODE -ne 0) { Write-Host "  VAROITUS: $svc skeeman päivitys epäonnistui, katso virhe yltä" -ForegroundColor Yellow }
     Pop-Location
   }
+}
+
+# 4a. Kevyt tila: dashboard käännetään ja kaikki ajetaan yhdessä prosessissa (apps\server)
+if ($Kevyt) {
+  Step 'Käännetään dashboard (kevyt tila)'
+  npm run build:single --workspace admin-dashboard
+  if ($LASTEXITCODE -ne 0) { throw 'Dashboardin käännös epäonnistui' }
+  Step 'Käynnistetään palvelin'
+  Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='AI Accountant (kaikki palvelut)'; Set-Location '$root\apps\server'; npm start"
+  for ($i = 0; $i -lt 45; $i++) {
+    try { Invoke-WebRequest -UseBasicParsing http://localhost:3000/health -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep -Seconds 2 }
+  }
+  Start-Process 'http://localhost:3000'
+  Write-Host "`nValmis. Osoite: http://localhost:3000  (kaikki palvelut samassa ikkunassa; sulje ikkuna pysäyttääksesi)" -ForegroundColor Green
+  Write-Host 'Uudet tositteet tallentuvat kansioon apps\voucher-service\files (mukana varmuuskopiossa).'
+  exit 0
 }
 
 # 4. Palvelut omiin ikkunoihin

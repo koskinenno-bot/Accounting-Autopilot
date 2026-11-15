@@ -9,12 +9,13 @@ import { useCompany } from '../hooks/useCompany';
 import { useAuth } from '../hooks/useAuth';
 import TimeCard from '../components/TimeCard';
 import MissingVouchersCard from '../components/MissingVouchersCard';
+import CompanyInfoCard from '../components/CompanyInfoCard';
 import { uploadVoucher } from '../api/vouchers';
 import { uploadStatement } from '../api/bank';
 import { useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const ML_SERVICE_URL = import.meta.env.VITE_ML_SERVICE_URL || 'http://localhost:8001/api/v1';
+const ML_SERVICE_URL = import.meta.env.VITE_ML_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
 
 // Aiemmat muutosluvut (+1, -2 ...) olivat kovakoodattuja eivätkä perustuneet dataan, joten ne poistettiin.
 // to: kortti on linkki (esim. Käsittelemättömät -> /pending).
@@ -54,6 +55,11 @@ const SuggestionBadge = ({ accountCode, label, confidence }: { accountCode: stri
     <span className="text-[10px] text-primary-400/70 truncate max-w-[80px]">{label}</span>
   </div>
 );
+
+/** Yhden prosessin palvelimessa (VITE_API_URL) tila haetaan palvelimen omasta /health-osoitteesta. */
+const SINGLE_SERVER: string | undefined = import.meta.env.VITE_API_URL
+  ? String(import.meta.env.VITE_API_URL).replace(/\/api\/v1\/?$/, '')
+  : undefined;
 
 const ServiceStatus = ({ name, url }: { name: string, url: string }) => {
   const [status, setStatus] = useState<'loading' | 'online' | 'offline'>('loading');
@@ -101,7 +107,7 @@ const Dashboard = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bankInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const { selectedCompany, canWrite } = useCompany();
+  const { selectedCompany, canWrite, canManage } = useCompany();
   const { user } = useAuth();
   const { data: companyStats } = useQuery({ queryKey: ['companyStats'], queryFn: getCompanyStats });
   
@@ -252,6 +258,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <TimeCard companyId={selectedCompany.id} canWrite={canWrite} userId={user?.id} />
           <MissingVouchersCard companyId={selectedCompany.id} canWrite={canWrite} userEmail={user?.email} />
+          <CompanyInfoCard company={selectedCompany} canManage={canManage} />
         </div>
       )}
 
@@ -332,11 +339,17 @@ const Dashboard = () => {
           </div>
           <div className="p-6 space-y-6">
             {/* Palveluiden /health on juuressa, ei /api/v1-polun alla */}
-            <ServiceStatus name="User Service" url="http://localhost:3001" />
-            <ServiceStatus name="Accounting Service" url="http://localhost:3002" />
-            <ServiceStatus name="Voucher Service" url="http://localhost:3003" />
-            <ServiceStatus name="Bank Service" url="http://localhost:3005" />
-            <ServiceStatus name="ML Service" url="http://localhost:8001" />
+            {SINGLE_SERVER !== undefined ? (
+              <ServiceStatus name="Palvelin" url={SINGLE_SERVER} />
+            ) : (
+              <>
+                <ServiceStatus name="User Service" url="http://localhost:3001" />
+                <ServiceStatus name="Accounting Service" url="http://localhost:3002" />
+                <ServiceStatus name="Voucher Service" url="http://localhost:3003" />
+                <ServiceStatus name="Bank Service" url="http://localhost:3005" />
+                <ServiceStatus name="ML Service" url="http://localhost:8001" />
+              </>
+            )}
 
             <div className="pt-4">
               <h4 className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">Kafka Tapahtumakuorma</h4>

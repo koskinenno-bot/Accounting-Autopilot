@@ -325,4 +325,4 @@ async def get_budget_comparison(companyId: str, fiscalYearId: Optional[str] = No
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 3006)))
+    uvicorn.run(app, host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", 3006)))

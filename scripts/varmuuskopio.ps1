@@ -21,16 +21,24 @@ if ($LASTEXITCODE -ne 0) { throw 'Tietokantojen varmuuskopio epäonnistui. Onko 
 docker cp ai-accountant-postgres:/tmp/kannat.sql.gz (Join-Path $kansio 'kannat.sql.gz')
 docker exec ai-accountant-postgres rm -f /tmp/kannat.sql.gz | Out-Null
 
-Write-Host "2/3 Tositteet (MinIO)..."
-docker exec ai-accountant-minio sh -c "tar czf /tmp/minio.tgz -C /bitnami/minio data"
-if ($LASTEXITCODE -ne 0) { throw 'MinIO-varmuuskopio epäonnistui' }
-docker cp ai-accountant-minio:/tmp/minio.tgz (Join-Path $kansio 'minio.tgz')
-docker exec ai-accountant-minio rm -f /tmp/minio.tgz | Out-Null
+Write-Host "2/3 Tositteet (MinIO ja/tai voucher-service\files)..."
+# MinIO vain, jos sen kontti on käynnissä (yhden prosessin palvelin tallentaa tositteet levylle)
+$minio = docker ps -q -f name=ai-accountant-minio
+if ($minio) {
+  docker exec ai-accountant-minio sh -c "tar czf /tmp/minio.tgz -C /bitnami/minio data"
+  if ($LASTEXITCODE -ne 0) { throw 'MinIO-varmuuskopio epäonnistui' }
+  docker cp ai-accountant-minio:/tmp/minio.tgz (Join-Path $kansio 'minio.tgz')
+  docker exec ai-accountant-minio rm -f /tmp/minio.tgz | Out-Null
+}
+$tositteet = Join-Path $juuri 'apps\voucher-service\files'
+if (Test-Path $tositteet) {
+  Compress-Archive -Path (Join-Path $tositteet '*') -DestinationPath (Join-Path $kansio 'tositteet.zip') -Force
+}
 
 Write-Host "3/3 Dokumentit ja arkisto (document-service\uploads)..."
 $uploads = Join-Path $juuri 'apps\document-service\uploads'
 if (Test-Path $uploads) {
-  Compress-Archive -Path (Join-Path $uploads '*') -DestinationPath (Join-Path $kansio 'dokumentit.zip') -Force -ErrorAction SilentlyContinue
+  Compress-Archive -Path (Join-Path $uploads '*') -DestinationPath (Join-Path $kansio 'dokumentit.zip') -Force
 }
 
 # Tiivisteet eheyden tarkistukseen

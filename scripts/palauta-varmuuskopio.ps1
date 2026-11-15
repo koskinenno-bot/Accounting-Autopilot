@@ -25,10 +25,17 @@ docker cp (Join-Path $Kansio 'kannat.sql.gz') ai-accountant-postgres:/tmp/kannat
 docker exec ai-accountant-postgres sh -c "gunzip -c /tmp/kannat.sql.gz | psql -q -U admin -d postgres > /tmp/palautus.log 2>&1; rm -f /tmp/kannat.sql.gz"
 if ($LASTEXITCODE -ne 0) { throw 'Tietokantojen palautus epäonnistui (docker exec ai-accountant-postgres cat /tmp/palautus.log)' }
 
-Write-Host '2/3 Tositteet (MinIO)...'
-docker cp (Join-Path $Kansio 'minio.tgz') ai-accountant-minio:/tmp/minio.tgz
-docker exec ai-accountant-minio sh -c "rm -rf /bitnami/minio/data/* && tar xzf /tmp/minio.tgz -C /bitnami/minio && rm -f /tmp/minio.tgz"
-docker restart ai-accountant-minio | Out-Null
+Write-Host '2/3 Tositteet...'
+if (Test-Path (Join-Path $Kansio 'minio.tgz')) {
+  docker cp (Join-Path $Kansio 'minio.tgz') ai-accountant-minio:/tmp/minio.tgz
+  docker exec ai-accountant-minio sh -c "rm -rf /bitnami/minio/data/* && tar xzf /tmp/minio.tgz -C /bitnami/minio && rm -f /tmp/minio.tgz"
+  if ($LASTEXITCODE -ne 0) { throw 'MinIO-palautus epäonnistui. Onko ai-accountant-minio käynnissä?' }
+  docker restart ai-accountant-minio | Out-Null
+}
+$tzip = Join-Path $Kansio 'tositteet.zip'
+if (Test-Path $tzip) {
+  Expand-Archive -Path $tzip -DestinationPath (Join-Path $juuri 'apps\voucher-service\files') -Force
+}
 
 Write-Host '3/3 Dokumentit...'
 $zip = Join-Path $Kansio 'dokumentit.zip'

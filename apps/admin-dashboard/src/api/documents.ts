@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const DOCUMENT_SERVICE_URL = import.meta.env.VITE_DOCUMENT_SERVICE_URL || 'http://localhost:3007/api/v1';
+const DOCUMENT_SERVICE_URL = import.meta.env.VITE_DOCUMENT_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3007/api/v1';
 
 export const documentsApi = axios.create({
   baseURL: DOCUMENT_SERVICE_URL,

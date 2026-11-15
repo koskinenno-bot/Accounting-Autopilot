@@ -3,6 +3,7 @@ import { setupCompanyCreatedConsumer } from '../consumers/companyConsumer';
 import { handleVoucherClassified } from '../consumers/voucherConsumer';
 import { handleBankStatementReceived } from '../consumers/bankConsumer';
 import { handleInvoiceCreated, handleInvoicePaid } from '../consumers/invoiceConsumer';
+import { localBusEnabled, subscribeLocal } from './localBus';
 
 const brokers = process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['localhost:9092'];
 
@@ -34,7 +35,22 @@ const ensureTopics = async () => {
   }
 };
 
+/** Tapahtuman käsittely (sama Kafkasta ja paikalliselta väylältä). */
+const dispatch = async (topic: string, eventPayload: any) => {
+  if (topic === 'company.created') await setupCompanyCreatedConsumer(eventPayload);
+  else if (topic === 'voucher.classified') await handleVoucherClassified(eventPayload);
+  else if (topic === 'bank.statement.received') await handleBankStatementReceived(eventPayload);
+  else if (topic === 'invoice.created') await handleInvoiceCreated(eventPayload);
+  else if (topic === 'invoice.status.changed') await handleInvoicePaid(eventPayload);
+};
+
 export const connectConsumer = async (attempt = 1): Promise<void> => {
+  // Yhden prosessin tila: ei Kafkaa, tapahtumat tulevat suoraan muilta palveluilta
+  if (localBusEnabled()) {
+    for (const topic of TOPICS) subscribeLocal(topic, `accounting:${topic}`, (payload) => dispatch(topic, payload));
+    console.log('accounting-service: paikallinen tapahtumaväylä käytössä');
+    return;
+  }
   try {
     await ensureTopics();
     await consumer.connect();
@@ -47,29 +63,11 @@ export const connectConsumer = async (attempt = 1): Promise<void> => {
 
     // Start listening
     await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
+      eachMessage: async ({ topic, message }) => {
         try {
-          if (topic === 'company.created' && message.value) {
-            console.log(`Received company.created event`);
-            const eventPayload = JSON.parse(message.value.toString());
-            await setupCompanyCreatedConsumer(eventPayload);
-          } else if (topic === 'voucher.classified' && message.value) {
-            console.log(`Received voucher.classified event`);
-            const eventPayload = JSON.parse(message.value.toString());
-            await handleVoucherClassified(eventPayload);
-          } else if (topic === 'bank.statement.received' && message.value) {
-            console.log(`Received bank.statement.received event`);
-            const eventPayload = JSON.parse(message.value.toString());
-            await handleBankStatementReceived(eventPayload);
-          } else if (topic === 'invoice.created' && message.value) {
-            console.log(`Received invoice.created event`);
-            const eventPayload = JSON.parse(message.value.toString());
-            await handleInvoiceCreated(eventPayload);
-          } else if (topic === 'invoice.status.changed' && message.value) {
-            console.log(`Received invoice.status.changed event`);
-            const eventPayload = JSON.parse(message.value.toString());
-            await handleInvoicePaid(eventPayload);
-          }
+          if (!message.value) return;
+          console.log(`Received ${topic} event`);
+          await dispatch(topic, JSON.parse(message.value.toString()));
         } catch (err) {
           console.error(`Error processing message from topic ${topic}:`, err);
         }
@@ -85,5 +83,6 @@ export const connectConsumer = async (attempt = 1): Promise<void> => {
 };
 
 export const disconnectConsumer = async () => {
+  if (localBusEnabled()) return;
   await consumer.disconnect();
 };

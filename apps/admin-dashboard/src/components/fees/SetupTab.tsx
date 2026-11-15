@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
   BASIS_LABELS, createComponent, createDefaultComponents, createPayoff, deletePayoff, updateComponent, updateReskontraSettings,
 } from '../../api/fees';

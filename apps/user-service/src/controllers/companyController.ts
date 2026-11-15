@@ -3,7 +3,8 @@ import { prisma } from '../db';
 import { AuthRequest } from '../middleware/auth';
 import { publishCompanyCreated } from '../utils/kafka';
 import { v4 as uuidv4 } from 'uuid';
-import { ensureOrganization, getCompanyRole, isOrgAdmin, listVisibleCompanies } from '../access';
+import { canManage, ensureOrganization, getCompanyRole, isOrgAdmin, listVisibleCompanies } from '../access';
+import { formatIban, isValidIban, normalizeIban } from '../iban';
 
 const BUSINESS_ID = /^\d{7}-\d$/;
 const COMPANY_TYPES = ['AS_OY', 'KOY'];
@@ -106,6 +107,46 @@ export const checkCompanyAccess = async (req: AuthRequest, res: Response) => {
     return role ? res.json({ role }) : res.status(403).json({ error: 'Ei käyttöoikeutta tähän yhtiöön' });
   } catch (error) {
     return res.status(500).json({ error: 'Käyttöoikeuden tarkistus epäonnistui' });
+  }
+};
+
+/**
+ * PATCH /companies/:id { name?, iban?, bic? } -> yhtiön perustiedot (vain isännöitsijä).
+ * Tilinumero tallennetaan asetuksiin; sitä käytetään laskuissa ja Finvoice-aineistossa.
+ */
+export const updateCompany = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Tunnistautuminen vaaditaan' });
+    const role = await getCompanyRole(req.user, req.params.id);
+    if (!role) return res.status(403).json({ error: 'Ei käyttöoikeutta tähän yhtiöön' });
+    if (!canManage(role)) return res.status(403).json({ error: 'Vain isännöitsijä voi muuttaa yhtiön tietoja' });
+    const { name, iban, bic } = req.body ?? {};
+    const company = await prisma.company.findUnique({ where: { id: req.params.id } });
+    if (!company) return res.status(404).json({ error: 'Yhtiötä ei löydy' });
+
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim() || name.trim().length > 200) return res.status(400).json({ error: 'Nimi on pakollinen (enintään 200 merkkiä)' });
+      data.name = name.trim();
+    }
+    const settings: Record<string, unknown> = { ...((company.settings as Record<string, unknown> | null) ?? {}) };
+    if (iban !== undefined) {
+      if (iban === null || iban === '') delete settings.iban;
+      else if (!isValidIban(iban)) return res.status(400).json({ error: 'Tilinumero (IBAN) on virheellinen' });
+      else settings.iban = normalizeIban(iban);
+    }
+    if (bic !== undefined) {
+      if (bic === null || bic === '') delete settings.bic;
+      else if (typeof bic !== 'string' || !/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic.trim().toUpperCase())) return res.status(400).json({ error: 'BIC-tunnus on virheellinen' });
+      else settings.bic = bic.trim().toUpperCase();
+    }
+    data.settings = settings;
+    const saved = await prisma.company.update({ where: { id: company.id }, data });
+    const s = (saved.settings as Record<string, unknown> | null) ?? {};
+    return res.json({ ...saved, myRole: role, ibanFormatted: typeof s.iban === 'string' ? formatIban(s.iban) : null });
+  } catch (error) {
+    console.error('Company update error:', error);
+    return res.status(500).json({ error: 'Yhtiön tietojen tallennus epäonnistui' });
   }
 };
 

@@ -1,13 +1,12 @@
 import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
-import { PrismaClient } from '../prisma/client';
+import { prisma } from './db';
 import { EmailJob, deliver } from './delivery';
 
 /**
  * Sähköpostijonon käsittelijä (BullMQ + Redis). Käynnistyy, kun Redis vastaa (myös myöhemmin).
  * Ilman Redistä viestit lähetetään suoraan (ks. notificationController).
  */
-const prisma = new PrismaClient();
 // BullMQ Worker vaatii maxRetriesPerRequest: null (blokkaavat komennot)
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: null });
 connection.on('error', () => undefined); // yhteysvirheet: ioredis yrittää uudelleen

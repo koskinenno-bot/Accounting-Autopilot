@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '../../prisma/client';
+import { prisma } from '../db';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { EmailJob, deliver, fromAddress, mailMode, verifySmtp } from '../delivery';
 
-const prisma = new PrismaClient();
 // enableOfflineQueue: false => jos Redis ei vastaa, lisäys epäonnistuu heti ja viesti lähetetään suoraan
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', { enableOfflineQueue: false, maxRetriesPerRequest: 1 });
 connection.on('error', () => undefined);

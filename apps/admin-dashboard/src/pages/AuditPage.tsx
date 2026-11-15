@@ -1,7 +1,6 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { History, User, Activity, Globe, Info, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { History, User, Activity, Globe, Search, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { getAuditLogs, verifyAuditLog } from '../api/audit';
 import { useCompany } from '../hooks/useCompany';
 

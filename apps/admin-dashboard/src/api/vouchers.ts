@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const VOUCHER_SERVICE_URL = import.meta.env.VITE_VOUCHER_SERVICE_URL || 'http://localhost:3003/api/v1';
+const VOUCHER_SERVICE_URL = import.meta.env.VITE_VOUCHER_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3003/api/v1';
 
 export const vouchersApi = axios.create({
   baseURL: VOUCHER_SERVICE_URL,

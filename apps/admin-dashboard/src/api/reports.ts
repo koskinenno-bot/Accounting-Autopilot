@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const REPORTING_SERVICE_URL = import.meta.env.VITE_REPORTING_SERVICE_URL || 'http://localhost:3006/api/v1';
+const REPORTING_SERVICE_URL = import.meta.env.VITE_REPORTING_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3006/api/v1';
 
 export const reportsApi = axios.create({
   baseURL: REPORTING_SERVICE_URL,

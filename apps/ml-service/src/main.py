@@ -155,4 +155,4 @@ async def save_feedback(data: Dict, user: dict = Depends(require_auth)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8001)))
+    uvicorn.run(app, host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", 8001)))

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || 'http://localhost:3001/api/v1';
+const USER_SERVICE_URL = import.meta.env.VITE_USER_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
 
 export const companiesApi = axios.create({
   baseURL: USER_SERVICE_URL,
@@ -30,3 +30,9 @@ export const getCompanyStats = async () => {
   return data;
 };
 
+
+/** Yhtiön perustiedot (vain isännöitsijä). iban: null poistaa. */
+export const updateCompany = async (id: string, patch: { name?: string; iban?: string | null; bic?: string | null }) => {
+  const { data } = await companiesApi.patch(`/companies/${id}`, patch);
+  return data;
+};

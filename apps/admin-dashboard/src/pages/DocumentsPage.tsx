@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { File, Upload, Lock, Trash2, Shield, Download, Plus } from 'lucide-react';
+import { File, Lock, Trash2, Shield, Download, Plus } from 'lucide-react';
 import { getDocuments, uploadDocument, archiveDocument, deleteDocument, openDocument } from '../api/documents';
 import { useCompany } from '../hooks/useCompany';
 

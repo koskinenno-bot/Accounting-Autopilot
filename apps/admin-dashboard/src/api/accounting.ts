@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const ACCOUNTING_SERVICE_URL = import.meta.env.VITE_ACCOUNTING_SERVICE_URL || 'http://localhost:3002/api/v1';
+const ACCOUNTING_SERVICE_URL = import.meta.env.VITE_ACCOUNTING_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3002/api/v1';
 
 export const accountingApi = axios.create({
   baseURL: ACCOUNTING_SERVICE_URL,

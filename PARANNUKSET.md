@@ -498,6 +498,64 @@ kirjanpidon rahatilien (1900–1989) saldoon. Tämä puuttui moduulista 6.
 - Testattu: käsin syötetty saldo, tiliotteen ja pankkiyhteyden saldo, virheellinen IBAN, ero ja sen esto merkinnässä.
   Yksikkötestit: accounting-service 55, bank-service 21.
 
+## Kovennus ennen pilottia (16.11.2026)
+
+### Kevyt käynnistys: kaikki yhdessä prosessissa (`KAYNNISTA-KEVYT.bat`)
+- Kaikki Node-palvelut ajetaan samassa prosessissa ja portissa **3000** (`apps\server`). Tapahtumat kulkevat
+  prosessin sisällä (`EVENT_BUS=local`), joten **Kafkaa, Kongia ja Redistä ei tarvita**. Dockerista tarvitaan
+  Postgres ja MinIO vanhoja tositteita varten. Raportti- ja tekoälypalvelut (Python) palvelin käynnistää itse.
+- Dashboard käännetään (`npm run build:single --workspace admin-dashboard`) ja palvelin jakaa sen samasta osoitteesta:
+  **http://localhost:3000**. Tila: http://localhost:3000/health.
+- Asetukset luetaan palveluiden nykyisistä `.env`-tiedostoista (jokaisen palvelun `DATABASE_URL` säilyy omana kantanaan).
+  Halutessaan kaikki asetukset voi koota yhteen tiedostoon `apps\server\.env` (esim. `USER_DATABASE_URL=...`).
+  Palvelin varoittaa käynnistyessään, jos `JWT_SECRET` tai `SERVICE_TOKEN` poikkeaa palveluiden välillä.
+- Uudet tositteet tallentuvat levylle kansioon `apps\voucher-service\files` (vanhat aukeavat edelleen MinIOsta).
+  MinIOn voi pitää uusillekin asettamalla `MINIO_ENDPOINT`.
+- **Vanha tapa toimii ennallaan**: `KAYNNISTA.bat` käynnistää palvelut omiin ikkunoihinsa Kafkan ja Kongin kanssa.
+- Palvelimella (Linux): `cd apps/server && NODE_ENV=production npm start` ja eteen HTTPS-välityspalvelin (esim. Caddy).
+  Tuotannossa palvelin kuuntelee vain osoitetta 127.0.0.1 (muutettavissa `HOST`), ja selaimelle sallitaan vain sama
+  alkuperä. Muut alkuperät sallitaan muuttujalla `CORS_ORIGINS` (pilkuilla eroteltu lista).
+
+### Tietoturva
+- Kirjautuminen: sähköposti kirjainkoosta riippumatta, **5 väärää yritystä lukitsee tunnuksen 15 minuutiksi**.
+- **Salasanan vaihto ja palautus mitätöivät kaikki vanhat kirjautumiset.** Uusi sivu **Oma tili** (valikossa):
+  salasanan vaihto ja "Kirjaudu ulos kaikilta laitteilta". Kirjautuminen on voimassa 12 tuntia.
+- Kaikissa palveluissa samat turvaotsakkeet, rajattu CORS ja virheenkäsittely (selaimelle ei näy pinojälkiä,
+  liian iso pyyntö 413). Docker-palvelut (Postgres, Redis, Kafka, MinIO) kuuntelevat vain omaa konetta.
+- Dokumentit: suojaamaton `/uploads`-polku poistettu. Tiedosto ladataan vain tunnisteella ja käyttöoikeus
+  tarkistaen, ja tiedoston tiiviste tarkistetaan (muuttunut tiedosto ei aukea).
+- Lukuoikeuden käyttäjille (hallitus, tarkastajat) muokkausnapit eivät enää näy.
+
+### Uudet toiminnot
+- **Ajankäyttö yhtiöittäin**: dashboard mittaa isännöitsijän aktiivisen ajan yhtiön sivuilla (minuutti kerrallaan,
+  vain kun välilehti on näkyvissä ja käyttäjä aktiivinen). Lisäksi voi kirjata käsin (esim. puhelut).
+  Yhtiön etusivulla kortti, Kaikki yhtiöt -näkymässä sarake "Työaika 12 kk" ja ennuste. Tavoite 10 h vuodessa
+  (`TIME_TARGET_HOURS`).
+- **Puuttuvien tositteiden pyyntö**: yhtiön etusivulla lista pankkimenoista ilman tositetta ja pyyntö sähköpostilla
+  (esim. hallituksen puheenjohtajalle). Vastaukset tulevat lähettäjän omaan sähköpostiin. Pyydetty tosite
+  näkyy työjonossa pyyntöpäivän kanssa alemmalla kiireellisyydellä, ja jos tositetta ei viikossa
+  tule, se palaa normaaliin kiireellisyyteen.
+- **Tilinpäätöksen arkistointi 10 vuodeksi**: kun tilinpäätös merkitään allekirjoitetuksi, sen PDF:t
+  (tilinpäätös, tase-erittelyt, päiväkirja, pääkirja) tallentuvat Dokumentteihin lukittuina. Säilytys päättyy
+  tilikauden lopusta 10 vuoden kuluttua (31.12.). Arkistoitua ei voi poistaa.
+- **Yhtiön tilinumero**: yhtiön etusivulla. Finvoice-aineistossa käytetään nyt yhtiön oikeaa nimeä, Y-tunnusta ja
+  tilinumeroa (aiemmin malliarvot). Ilman tilinumeroa aineistoa ei muodosteta.
+- **Varmuuskopiot**: `scripts\varmuuskopio.ps1` (kannat, tositteet, dokumentit, tiivisteet, 30 uusinta) ja
+  `scripts\palauta-varmuuskopio.ps1`. Linux-palvelimelle `scripts/varmuuskopio.sh`. Ajasta päivittäin
+  (ohje tiedoston alussa) ja kopioi myös toiseen paikkaan.
+
+### Käyttöönotto
+Aja `KAYNNISTA.bat` tai `KAYNNISTA-KEVYT.bat` kerran: se päivittää kantojen rakenteen (`prisma db push`).
+Uusia sarakkeita: käyttäjien lukitus ja tunnisteversio, ajankäyttö, tositepyynnöt, arkiston lähdeavain.
+
+### Testit
+Yksikkötestit: user 15, accounting 62, invoicing 10, bank 21, notification 4, document 3, server 7.
+Koko polku testattu kevyttä palvelinta vasten oikealla Postgresilla: rekisteröinti, lukitus, salasanan vaihto,
+yhtiön luonti (tilikartta ja tilikausi syntyvät ilman Kafkaa), ajankäyttö, puuttuvat tositteet ja sähköposti,
+raportit välityksen kautta, allekirjoitus ja arkistointi, PDF:n lataus, tositteen lataus levylle, Finvoice ja
+toisen toimiston eristys. Varmuuskopioskriptejä ei voitu ajaa testiympäristössä (ei Windowsia eikä Dockeria):
+kokeile ne kerran ennen pilottia.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BANK_SERVICE_URL = import.meta.env.VITE_BANK_SERVICE_URL || 'http://localhost:3005/api/v1';
+const BANK_SERVICE_URL = import.meta.env.VITE_BANK_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3005/api/v1';
 
 export const bankApi = axios.create({
   baseURL: BANK_SERVICE_URL,

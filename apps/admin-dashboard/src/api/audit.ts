@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const AUDIT_SERVICE_URL = import.meta.env.VITE_AUDIT_SERVICE_URL || 'http://localhost:3009/api/v1';
+const AUDIT_SERVICE_URL = import.meta.env.VITE_AUDIT_SERVICE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3009/api/v1';
 
 export const auditApi = axios.create({
   baseURL: AUDIT_SERVICE_URL,

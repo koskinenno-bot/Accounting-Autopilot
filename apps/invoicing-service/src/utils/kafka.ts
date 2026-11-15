@@ -1,6 +1,7 @@
 import { Kafka, Producer, Consumer } from 'kafkajs';
 import { InvoiceCreatedEvent, InvoiceStatusChangedEvent } from '@ai-accountant/types';
 import { handleBankStatementReceived } from '../consumers/bankConsumer';
+import { localBusEnabled, publishLocal, subscribeLocal } from './localBus';
 
 const brokers = process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['localhost:9092'];
 
@@ -13,6 +14,11 @@ export const producer: Producer = kafka.producer();
 export const consumer: Consumer = kafka.consumer({ groupId: 'invoicing-group' });
 
 export const connectKafka = async () => {
+  if (localBusEnabled()) {
+    subscribeLocal('bank.statement.received', 'invoicing:bank.statement.received', (event) => handleBankStatementReceived(event));
+    console.log('invoicing-service: paikallinen tapahtumaväylä käytössä');
+    return;
+  }
   try {
     await producer.connect();
     await consumer.connect();
@@ -39,11 +45,13 @@ export const connectKafka = async () => {
 };
 
 export const disconnectKafka = async () => {
+  if (localBusEnabled()) return;
   await consumer.disconnect();
   await producer.disconnect();
 };
 
 export const publishInvoiceCreated = async (event: InvoiceCreatedEvent) => {
+  if (localBusEnabled()) return publishLocal('invoice.created', event);
   await producer.send({
     topic: 'invoice.created',
     messages: [{ key: event.data.invoiceId, value: JSON.stringify(event) }]
@@ -51,6 +59,7 @@ export const publishInvoiceCreated = async (event: InvoiceCreatedEvent) => {
 };
 
 export const publishInvoiceStatusChanged = async (event: InvoiceStatusChangedEvent) => {
+  if (localBusEnabled()) return publishLocal('invoice.status.changed', event);
   await producer.send({
     topic: 'invoice.status.changed',
     messages: [{ key: event.data.invoiceId, value: JSON.stringify(event) }]

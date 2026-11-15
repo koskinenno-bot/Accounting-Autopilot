@@ -14,6 +14,7 @@ export interface Company {
   myRole: CompanyRole;
   fiscalYearStart?: string;
   fiscalYearEnd?: string;
+  settings?: { iban?: string; bic?: string } | null;
 }
 
 interface CompanyContextType {

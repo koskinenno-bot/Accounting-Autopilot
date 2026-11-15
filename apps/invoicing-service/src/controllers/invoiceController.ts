@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '../../prisma/client';
+import { prisma } from '../db';
 import axios from 'axios';
 import * as finvoiceService from '../services/finvoiceService';
 import { nextInvoiceNumber, referenceFor } from '../services/invoiceNumberService';
@@ -8,7 +8,6 @@ import { publishInvoiceCreated, publishInvoiceStatusChanged } from '../utils/kaf
 import { v4 as uuidv4 } from 'uuid';
 import { recordPayment } from './reskontraController';
 
-const prisma = new PrismaClient();
 
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001/api/v1';
 const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3008/api/v1';
@@ -129,14 +128,24 @@ export const getFinvoiceXml = async (req: Request, res: Response) => {
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
     if (!(await assertCompanyAccess(req, res, invoice.companyId))) return;
 
-    // Mock company data (in real app, fetch from User Service)
+    // Myyjän tiedot yhtiöltä (käyttäjän omalla tunnisteella: näkyy vain, jos käyttäjä näkee yhtiön)
+    let company: any = null;
+    try {
+      const { data } = await axios.get(`${USER_SERVICE_URL}/companies`, { headers: { Authorization: req.headers.authorization || '' }, timeout: 5_000 });
+      company = Array.isArray(data) ? data.find((c: any) => c?.id === invoice.companyId) : null;
+    } catch { /* käsitellään alla */ }
+    if (!company) return res.status(502).json({ error: 'Yhtiön tietoja ei saatu haettua' });
+    const iban = company.settings?.iban;
+    if (typeof iban !== 'string' || !iban) {
+      return res.status(409).json({ error: 'Yhtiön tilinumero puuttuu. Lisää se yhtiön tietoihin ennen Finvoice-aineiston muodostamista.' });
+    }
     const xml = finvoiceService.generateFinvoiceXml({
       invoiceNumber: invoice.invoiceNumber,
       issueDate: invoice.issueDate.toISOString().split('T')[0],
       dueDate: invoice.dueDate.toISOString().split('T')[0],
-      sellerName: 'Malliyhtiö Oy',
-      sellerBusinessId: '1234567-8',
-      sellerIban: 'FI1234567890123456',
+      sellerName: company.name,
+      sellerBusinessId: company.businessId,
+      sellerIban: iban,
       buyerName: invoice.recipientName,
       totalAmount: Number(invoice.totalAmount),
       currency: invoice.currency,
@@ -150,7 +159,9 @@ export const getFinvoiceXml = async (req: Request, res: Response) => {
       })),
     });
 
-    res.header('Content-Type', 'application/xml').send(xml);
+    res.header('Content-Type', 'application/xml; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="finvoice-${String(invoice.invoiceNumber).replace(/[^\w-]/g, '_')}.xml"`)
+      .send(xml);
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate XML' });
   }

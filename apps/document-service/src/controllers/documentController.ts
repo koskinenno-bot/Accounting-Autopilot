@@ -9,9 +9,14 @@ import { closingArchiveItems, looksLikePdf, retentionUntil } from '../archive';
 
 const REPORTING_SERVICE_URL = process.env.REPORTING_SERVICE_URL || 'http://localhost:3006/api/v1';
 const ACCOUNTING_SERVICE_URL = process.env.ACCOUNTING_SERVICE_URL || 'http://localhost:3002/api/v1';
-const UPLOAD_DIR = path.resolve('uploads');
+// Palvelun oma kansio riippumatta käynnistyskansiosta (myös yhden prosessin tilassa)
+export const SERVICE_ROOT = path.resolve(__dirname, '../..');
+export const UPLOAD_DIR = path.join(SERVICE_ROOT, 'uploads');
+/** Kannassa polut ovat suhteellisia palvelun kansioon ("uploads/..."), uudet absoluuttisia. */
+const storedFile = (p: string) => (path.isAbsolute(p) ? p : path.join(SERVICE_ROOT, p));
 
-const prisma = new PrismaClient();
+// Yhden prosessin tilassa jokaisella palvelulla on oma kantaosoite (DOCUMENT_DATABASE_URL)
+const prisma = new PrismaClient({ datasourceUrl: process.env.DOCUMENT_DATABASE_URL || undefined });
 
 export const uploadDocument = async (req: Request, res: Response) => {
   try {
@@ -23,6 +28,8 @@ export const uploadDocument = async (req: Request, res: Response) => {
     if (!companyId) return res.status(400).json({ error: 'companyId is required' });
 
     const checksum = createHash('sha256').update(fs.readFileSync(file.path)).digest('hex');
+    // Tallennetaan suhteellinen polku (sama tiedosto löytyy, vaikka kansio siirtyisi)
+    const storagePath = path.relative(SERVICE_ROOT, path.resolve(file.path));
 
     // 1. Create or find Document record
     const document = await prisma.document.create({
@@ -35,7 +42,7 @@ export const uploadDocument = async (req: Request, res: Response) => {
             filename: file.originalname,
             mimeType: file.mimetype,
             size: file.size,
-            storagePath: file.path,
+            storagePath,
             checksum,
             createdBy: userId || 'SYSTEM',
             version: 1,
@@ -123,7 +130,7 @@ export const downloadDocument = async (req: Request, res: Response) => {
     if (!document || !document.versions[0]) return res.status(404).json({ error: 'Dokumenttia ei löydy' });
     if (!(await assertCompanyAccess(req, res, document.companyId, 'read'))) return;
     const v = document.versions[0];
-    const file = path.resolve(v.storagePath);
+    const file = storedFile(v.storagePath);
     // Vain uploads-kansion tiedostot (polku tulee kannasta, mutta varmistetaan)
     if (!file.startsWith(UPLOAD_DIR + path.sep) || !fs.existsSync(file)) return res.status(410).json({ error: 'Tiedosto puuttuu arkistosta' });
     const content = fs.readFileSync(file);
@@ -180,7 +187,7 @@ export const archiveClosing = async (req: Request, res: Response) => {
         data: {
           companyId, name: item.name, type: 'REPORT', isArchived: true, archivedAt: new Date(), retentionUntil: until, sourceKey: item.key,
           versions: { create: {
-            filename: item.filename, mimeType: 'application/pdf', size: buf.length, storagePath: file,
+            filename: item.filename, mimeType: 'application/pdf', size: buf.length, storagePath: path.relative(SERVICE_ROOT, file),
             checksum: createHash('sha256').update(buf).digest('hex'), createdBy: userId,
           } },
         },

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import * as documentController from '../controllers/documentController';
+import { UPLOAD_DIR } from '../controllers/documentController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -9,7 +10,7 @@ const router = Router();
 // Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    cb(null, UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
