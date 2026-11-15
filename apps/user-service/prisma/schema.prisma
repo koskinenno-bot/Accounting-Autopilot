@@ -27,6 +27,48 @@ model User {
   // Relations
   companies     UserCompany[]
   sessions      Session[]
+  organizations OrganizationMember[]
+}
+
+// Isännöintitoimisto: tuotteen asiakas. Toimistolla on yhtiöt (As Oy, KOY) ja työntekijät.
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  businessId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  members     OrganizationMember[]
+  companies   Company[]
+  invitations Invitation[]
+}
+
+// Toimiston jäsen. role: OWNER (omistaja) | ADMIN (pääkäyttäjä) | MEMBER (työntekijä).
+// OWNER ja ADMIN näkevät kaikki toimiston yhtiöt isännöitsijän oikeuksin ja hallitsevat käyttäjiä.
+model OrganizationMember {
+  userId         String
+  organizationId String
+  role           String       @default("MEMBER")
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  @@id([userId, organizationId])
+  @@index([organizationId])
+}
+
+// Kutsu toimistoon tai yksittäisiin yhtiöihin (esim. hallituksen jäsen, tilintarkastaja).
+model Invitation {
+  id             String       @id @default(uuid())
+  organizationId String
+  email          String
+  orgRole        String?      // null = ei toimiston jäsen, vain yhtiökohtaiset oikeudet
+  companyRoles   Json         // [{ companyId, role }]
+  token          String       @unique
+  invitedBy      String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  @@index([organizationId])
 }
 
 model Company {
@@ -37,6 +79,9 @@ model Company {
   fiscalYearStart         DateTime
   fiscalYearEnd           DateTime
   chartOfAccountsTemplate String    @default("TATO")
+  companyType             String    @default("AS_OY") // AS_OY | KOY
+  organizationId          String?
+  organization            Organization? @relation(fields: [organizationId], references: [id])
   settings                Json?     // Changed to Json for PostgreSQL
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
@@ -46,9 +91,13 @@ model Company {
   shareholders            Shareholder[]
 }
 
+// Yhtiökohtainen käyttöoikeus. role: MANAGER (isännöitsijä) | ASSISTANT (kirjanpitoassistentti)
+// | BOARD (hallitus, luku) | AUDITOR (tilin- tai toiminnantarkastaja, luku).
 model UserCompany {
   userId    String
   companyId String
+  role      String    @default("MANAGER")
+  createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id])
   company   Company   @relation(fields: [companyId], references: [id])
 

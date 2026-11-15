@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 import { getAccounts, getLedgerByStatus } from '../api/accounting';
 import { openVoucherFile } from '../api/vouchers';
 import { FileText } from 'lucide-react';
@@ -11,8 +11,8 @@ const eur = (n: number | string) =>
 /** Pääkirja: kirjatut (POSTED) ja lukitut (LOCKED) viennit päivämääräjärjestyksessä. */
 const LedgerPage = () => {
   const { t } = useTranslation();
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const companyId: string | undefined = companies?.[0]?.id;
+  const { companies, selectedCompany } = useCompany();
+  const companyId: string | undefined = selectedCompany?.id;
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ['postedLedger', companyId],

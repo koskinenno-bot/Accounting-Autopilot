@@ -3,14 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { History, User, Activity, Globe, Info, Search } from 'lucide-react';
 import { getAuditLogs } from '../api/audit';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 
 const AuditPage = () => {
   const { t } = useTranslation();
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const selectedCompany = companies?.[0];
-
+  const { selectedCompany } = useCompany();
+  
   const { data: logs, isLoading } = useQuery({
     queryKey: ['audit-logs', selectedCompany?.id],
     queryFn: () => getAuditLogs(selectedCompany?.id),

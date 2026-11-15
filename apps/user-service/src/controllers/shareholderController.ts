@@ -1,17 +1,13 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '../../prisma/client';
+import { prisma } from '../db';
 import { AuthRequest } from '../middleware/auth';
+import { canWrite, getCompanyRole } from '../access';
 
-const prisma = new PrismaClient();
-
-/** Onko kirjautuneella käyttäjällä pääsy yhtiöön (jäsenyys tai SUPER_ADMIN). */
-const hasCompanyAccess = async (req: AuthRequest, companyId: string): Promise<boolean> => {
-  if (!req.user || !companyId) return false;
-  if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SERVICE') return true;
-  const membership = await prisma.userCompany.findUnique({
-    where: { userId_companyId: { userId: req.user.userId, companyId } },
-  });
-  return Boolean(membership);
+/** Pääsy yhtiöön; write=true vaatii kirjoitusoikeuden (isännöitsijä tai assistentti). */
+const hasCompanyAccess = async (req: AuthRequest, companyId: string, write = false): Promise<boolean> => {
+  if (!req.user || typeof companyId !== 'string' || !companyId) return false;
+  const role = await getCompanyRole(req.user, companyId);
+  return Boolean(role) && (!write || canWrite(role));
 };
 
 export const createShareholder = async (req: AuthRequest, res: Response) => {
@@ -28,7 +24,7 @@ export const createShareholder = async (req: AuthRequest, res: Response) => {
       shares 
     } = req.body;
 
-    if (!(await hasCompanyAccess(req, companyId))) {
+    if (!(await hasCompanyAccess(req, companyId, true))) {
       return res.status(403).json({ error: 'Ei käyttöoikeutta tähän yhtiöön' });
     }
 

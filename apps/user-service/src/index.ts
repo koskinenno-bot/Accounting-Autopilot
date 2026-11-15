@@ -1,14 +1,15 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { PrismaClient } from '../prisma/client';
+import { prisma } from './db';
 import authRoutes from './routes/authRoutes';
 import companyRoutes from './routes/companyRoutes';
 import shareholderRoutes from './routes/shareholderRoutes';
+import organizationRoutes from './routes/organizationRoutes';
+import invitationRoutes from './routes/invitationRoutes';
 import { connectProducer, disconnectProducer } from './utils/kafka';
 
 const app = express();
-const prisma = new PrismaClient();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
@@ -21,6 +22,8 @@ connectProducer();
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/companies', companyRoutes);
 app.use('/api/v1/shareholders', shareholderRoutes);
+app.use('/api/v1/organizations', organizationRoutes);
+app.use('/api/v1/invitations', invitationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -122,3 +122,21 @@ export const getAccountingStats = async (companyId?: string) => {
   const { data } = await accountingApi.get(url);
   return data;
 };
+
+export interface CompanyOverview {
+  companyId: string;
+  pending: number;
+  needsVoucher: number;
+  autoApprovable: number;
+  overdueInvoices: number;
+  lastBankDate: string | null;
+  openFiscalYear: { id: string; startDate: string; endDate: string } | null;
+  closingDue: boolean;
+}
+
+/** Kaikkien yhtiöiden tilanne isännöitsijän etusivulle. */
+export const getOverview = async (companyIds: string[]): Promise<CompanyOverview[]> => {
+  if (companyIds.length === 0) return [];
+  const { data } = await accountingApi.get('/accounting/overview', { params: { companyIds: companyIds.join(',') } });
+  return data;
+};

@@ -142,11 +142,57 @@ lokakuu pankkipohjaisesti (camt) ja marraskuu tositteet ensin (6 ostolaskua + No
 ### Testit
 accounting 16, bank 7, ml 10, reporting 8, invoicing (viitenumero) – kaikki läpi.
 
+## Isännöintitoimisto ja käyttöoikeudet (moduuli 1, 15.11.2026)
+
+Tuotteen asiakas on isännöintitoimisto, jolla on useita taloyhtiöitä. Haara: `moduuli-1-isannointitoimisto`.
+
+### Käyttöönotto
+```powershell
+powershell -ExecutionPolicy Bypass -File .\kaynnista.ps1
+```
+Skripti ajaa `prisma generate` ja `prisma db push` kaikille palveluille. user-servicen skeemaan tulee uusia tauluja
+ja sarakkeita oletusarvoineen, olemassa oleva data säilyy (kokeiltu vanhan skeeman datalla).
+Vanha käyttäjä saa ensimmäisellä kirjautumisella oman toimiston, ja hänen yhtiönsä liitetään siihen.
+
+### Roolit
+| Taso | Rooli | Oikeudet |
+| --- | --- | --- |
+| Toimisto | Omistaja / Pääkäyttäjä | Isännöitsijän oikeudet kaikkiin toimiston yhtiöihin, yhtiöiden lisäys, käyttäjien hallinta |
+| Toimisto | Työntekijä | Vain yhtiöt, joihin hänet on erikseen liitetty |
+| Yhtiö | Isännöitsijä | Kaikki, myös tilikauden sulkeminen ja avaussaldot |
+| Yhtiö | Kirjanpitoassistentti | Kirjaukset, tositteet, tiliotteet, laskut; ei tilikauden sulkemista |
+| Yhtiö | Hallitus | Vain luku |
+| Yhtiö | Tilin- tai toiminnantarkastaja | Vain luku |
+
+Palvelut tarkistavat roolin user-servicestä (`GET /companies/:id/access` palauttaa `{ role }`).
+Lukevat pyynnöt (GET) vaativat minkä tahansa roolin, muut pyynnöt isännöitsijän tai assistentin,
+tilikauden sulkeminen ja avaussaldot isännöitsijän. Yhteinen logiikka: `packages/config/auth/requireAuth.ts`
+(`node scripts/sync-auth.js` kopioi palveluihin).
+
+### Uutta
+- Rekisteröityminen luo isännöintitoimiston (rekisteröityjä on omistaja).
+- Dashboardin etusivu **Kaikki yhtiöt**: jokaisen yhtiön tehtävät (käsittelemättömät, puuttuvat tositteet,
+  erääntyneet ostolaskut, tilinpäätös tekemättä, vanha tiliote), eniten huomiota vaativat ensin.
+  Rajapinta: accounting-service `GET /accounting/overview?companyIds=a,b,c`.
+- Yläpalkin yhtiövalitsin: kaikki yhtiökohtaiset sivut näyttävät valitun yhtiön (aiemmin aina ensimmäisen).
+- **Käyttäjät**-sivu: kutsu, oikeuksien muokkaus, poisto. Kutsu luo linkin (voimassa 14 pv), jonka isännöitsijä
+  lähettää itse; kutsuttu asettaa salasanan sivulla `/invite/<tunniste>`. Toimiston viimeistä omistajaa ei voi poistaa.
+- **Yhtiöt**-sivun "Lisää uusi yhtiö" toimii (ennen pelkkä lomakepohja): nimi, Y-tunnus, As Oy / KOY, tilikausi.
+
+### Rajoitukset
+- Kutsua ei lähetetä sähköpostilla automaattisesti, koska sähköpostin lähetystä ei ole vielä kytketty. Linkki kopioidaan.
+- Lukuoikeuden käyttäjälle osa painikkeista näkyy yhä; palvelin estää muutokset ja näyttää virheen.
+
+### Testit
+user-service 4 (roolisäännöt), accounting 18 (sis. käyttöoikeustasot). Lisäksi ajettu läpi oikealla Postgresilla:
+vanhan käyttäjän siirtymä, rekisteröinti, yhtiöiden luonti, hallituksen ja assistentin kutsut, lukuoikeuden esto,
+tilikauden sulkemisen esto assistentilta, toisen toimiston yhtiön esto, viimeisen omistajan suoja.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
 2. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
 3. Varsinaisen TATO-tilikartan käyttöönotto (nykyinen on yksinkertaistus) ja ALV-velvollisten yhtiöiden ALV-käsittely.
 4. Myyntisaamisten ja ostovelkojen reskontraraportit sekä maksumuistutukset myöhässä oleville vastikkeille.
-5. Usean yhtiön valinta dashboardiin (nyt näytetään käyttäjän ensimmäinen yhtiö).
+5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
 6. Tilinpäätöksen liitetiedot ja toimintakertomus (AOYL 10:5–6 §) sekä tilintarkastajan käyttöoikeus.

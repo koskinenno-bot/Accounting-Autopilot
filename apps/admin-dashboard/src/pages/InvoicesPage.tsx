@@ -3,19 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Plus, FileText, Download, Filter, Search, MoreVertical, CreditCard } from 'lucide-react';
 import { getInvoices, createInvoice, getFinvoiceXmlUrl } from '../api/invoices';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 
 const InvoicesPage = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const selectedCompany = companies?.[0];
-
+  const { selectedCompany } = useCompany();
+  
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['invoices', selectedCompany?.id],
-    queryFn: () => getInvoices(selectedCompany?.id),
+    queryFn: () => getInvoices(selectedCompany!.id),
     enabled: !!selectedCompany?.id,
   });
 

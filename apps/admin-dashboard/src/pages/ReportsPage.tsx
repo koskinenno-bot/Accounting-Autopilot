@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { FileText, Download, AlertCircle } from 'lucide-react';
 import { getIncomeStatement, getBalanceSheet, openReportPdf } from '../api/reports';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 import FiscalYearSelect from '../components/FiscalYearSelect';
 
 const eur = (n: number) => `${n.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -43,8 +43,8 @@ const ReportsPage = () => {
   const [fiscalYearId, setFiscalYearId] = useState<string>();
   const [pdfError, setPdfError] = useState<string | null>(null);
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const companyId: string | undefined = companies?.[0]?.id;
+  const { selectedCompany } = useCompany();
+  const companyId: string | undefined = selectedCompany?.id;
 
   const { data: incomeData, isLoading: incomeLoading } = useQuery({
     queryKey: ['income-statement', companyId, fiscalYearId],

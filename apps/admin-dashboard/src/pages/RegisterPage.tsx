@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, UserPlus, ArrowLeft, User } from 'lucide-react';
+import { Mail, Lock, UserPlus, ArrowLeft, Building2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -10,6 +10,7 @@ const RegisterPage = () => {
     password: '',
     firstName: '',
     lastName: '',
+    organizationName: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ const RegisterPage = () => {
       await register(formData);
       navigate('/');
     } catch (err: any) {
-      setError('Rekisteröityminen epäonnistui. Sähköposti saattaa olla jo käytössä.');
+      setError(err?.response?.data?.error || 'Rekisteröityminen epäonnistui. Sähköposti saattaa olla jo käytössä.');
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +48,7 @@ const RegisterPage = () => {
             <span className="text-3xl font-bold text-white">A</span>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Luo uusi tili</h1>
-          <p className="text-slate-400 mt-2 font-medium">Aloita asunto-osakeyhtiösi kirjanpidon automatisointi</p>
+          <p className="text-slate-400 mt-2 font-medium">Isännöintitoimiston tili: yhtiöiden kirjanpito yhdestä paikasta</p>
         </div>
 
         <div className="glass-card p-8 border border-white/10">
@@ -61,6 +62,22 @@ const RegisterPage = () => {
                 {error}
               </motion.div>
             )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300 ml-1">Isännöintitoimisto</label>
+              <div className="relative group">
+                <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-primary-400 transition-colors" />
+                <input
+                  type="text"
+                  name="organizationName"
+                  required
+                  value={formData.organizationName}
+                  onChange={handleChange}
+                  className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all text-slate-100 placeholder:text-slate-600"
+                  placeholder="Isännöinti Esimerkki Oy"
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

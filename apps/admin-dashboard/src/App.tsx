@@ -2,8 +2,12 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { CompanyProvider } from './hooks/useCompany';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import OverviewPage from './pages/OverviewPage';
+import UsersPage from './pages/UsersPage';
+import InvitePage from './pages/InvitePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CompaniesPage from './pages/CompaniesPage';
@@ -29,12 +33,16 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <CompanyProvider>
         <Router>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/invite/:token" element={<InvitePage />} />
             
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><OverviewPage /></ProtectedRoute>} />
+            <Route path="/company" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
             <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
             <Route path="/accounting" element={<ProtectedRoute><div className="glass-card p-8 text-center"><h2 className="text-2xl font-bold">Kirjanpidon hallinta</h2><p className="text-slate-400 mt-2">Tämä osio on työn alla.</p></div></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
@@ -49,6 +57,7 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute><div className="glass-card p-8 text-center"><h2 className="text-2xl font-bold">Asetukset</h2><p className="text-slate-400 mt-2">Tämä osio on työn alla.</p></div></ProtectedRoute>} />
           </Routes>
         </Router>
+        </CompanyProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { AccountType, EntryStatus } from '../../prisma/client';
 import { prisma } from '../db';
-import { assertCompanyAccess } from '../middleware/requireAuth';
+import { AccessLevel, assertCompanyAccess } from '../middleware/requireAuth';
 import { ACCOUNTS } from '../accounts';
 import {
   ACCRUED_EXPENSES, ACCRUED_INCOME, DEPRECIATION_ACCOUNT, balancesFromLines, buildCarryForwardLines,
@@ -28,10 +28,10 @@ const handle = (fn: (req: Request, res: Response) => Promise<any>) => async (req
 };
 
 /** Tilikausi + käyttöoikeus. */
-const loadFiscalYear = async (req: Request, res: Response) => {
+const loadFiscalYear = async (req: Request, res: Response, level?: AccessLevel) => {
   const fy = await prisma.fiscalYear.findUnique({ where: { id: req.params.id } });
   if (!fy) throw new HttpError(404, 'Tilikautta ei löydy');
-  if (!(await assertCompanyAccess(req, res, fy.companyId))) return null;
+  if (!(await assertCompanyAccess(req, res, fy.companyId, level))) return null;
   return fy;
 };
 
@@ -87,7 +87,8 @@ const accountTypeFor = (acc: string): AccountType => {
 
 /** POST /fiscal-years/:id/opening-balances { rows: [{ accountNumber, name?, balance }] } */
 export const setOpeningBalances = handle(async (req, res) => {
-  const fy = await loadFiscalYear(req, res);
+  // Isännöitsijän päätös: assistentti, hallitus ja tarkastajat eivät voi
+  const fy = await loadFiscalYear(req, res, 'manage');
   if (!fy) return;
   if (fy.status !== 'OPEN') throw new HttpError(409, 'Tilikausi on suljettu');
   const rows: OpeningRow[] = req.body?.rows;
@@ -349,7 +350,8 @@ export const getClosingChecklist = handle(async (req, res) => {
  *  5. jaksotukset puretaan seuraavan kauden alkuun.
  */
 export const closeFiscalYear = handle(async (req, res) => {
-  const fy = await loadFiscalYear(req, res);
+  // Isännöitsijän päätös: assistentti, hallitus ja tarkastajat eivät voi
+  const fy = await loadFiscalYear(req, res, 'manage');
   if (!fy) return;
   if (fy.status === 'CLOSED') throw new HttpError(409, 'Tilikausi on jo suljettu');
 

@@ -1,10 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, Users, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Building2, Inbox, BookOpen, UserCog, Eye } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import LanguageSwitcher from './LanguageSwitcher';
+import { useCompany } from '../hooks/useCompany';
+import { COMPANY_ROLE_LABELS } from '../api/organizations';
 
 const SidebarItem = ({ icon: Icon, label, path, active }: { icon: any, label: string, path: string, active: boolean }) => (
   <Link to={path}>
@@ -41,18 +43,29 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const displayName = user?.email?.split('@')[0] || '';
   const initials = (displayName.slice(0, 2) || '?').toUpperCase();
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: t('dashboard.title'), path: '/', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
-    { icon: Users, label: t('nav.companies'), path: '/companies', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-    { icon: FileText, label: t('nav.financialStatements'), path: '/reports', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
-    { icon: ArrowRightLeft, label: t('reports.vastikelaskelma'), path: '/reports/vastike', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
-    { icon: CalendarCheck, label: t('nav.closing'), path: '/closing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ACCOUNTANT'] },
-    { icon: CreditCard, label: t('invoices.title'), path: '/billing', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'ACCOUNTANT'] },
-    { icon: Shield, label: t('documents.title'), path: '/documents', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER', 'ACCOUNTANT'] },
-    { icon: Mail, label: t('notifications.title'), path: '/notifications', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'PROPERTY_MANAGER', 'BOARD_MEMBER'] },
-    { icon: History, label: t('audit.title'), path: '/audit', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'ACCOUNTANT'] },
-    { icon: Settings, label: t('nav.settings'), path: '/settings', roles: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
-  ].filter(item => item.roles.includes(user?.role || 'VIEWER'));
+  const { companies, selectedCompany, selectCompany, role, canWrite, isOrgAdmin, organization } = useCompany();
+
+  // Toimiston näkymät ja valitun yhtiön näkymät. Roolit tarkistetaan lopullisesti palvelimella;
+  // valikko vain piilottaa sivut, joita käyttäjä ei voi käyttää.
+  const officeItems = [
+    { icon: LayoutDashboard, label: 'Kaikki yhtiöt', path: '/', show: true },
+    { icon: Building2, label: t('nav.companies'), path: '/companies', show: isOrgAdmin },
+    { icon: UserCog, label: 'Käyttäjät', path: '/users', show: isOrgAdmin },
+  ].filter((i) => i.show);
+
+  const companyItems = [
+    { icon: Inbox, label: 'Yhtiön tilanne', path: '/company', show: true },
+    { icon: ClipboardList, label: 'Käsittelemättömät', path: '/pending', show: canWrite },
+    { icon: BookOpen, label: 'Pääkirja', path: '/ledger', show: true },
+    { icon: FileText, label: t('nav.financialStatements'), path: '/reports', show: true },
+    { icon: ArrowRightLeft, label: t('reports.vastikelaskelma'), path: '/reports/vastike', show: true },
+    { icon: CalendarCheck, label: t('nav.closing'), path: '/closing', show: true },
+    { icon: CreditCard, label: t('invoices.title'), path: '/billing', show: true },
+    { icon: Shield, label: t('documents.title'), path: '/documents', show: true },
+    { icon: Mail, label: t('notifications.title'), path: '/notifications', show: canWrite },
+    { icon: History, label: t('audit.title'), path: '/audit', show: true },
+    { icon: Settings, label: t('nav.settings'), path: '/settings', show: isOrgAdmin },
+  ].filter((i) => i.show && selectedCompany);
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
@@ -66,13 +79,18 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <span className="text-xl font-bold tracking-tight">AI Accountat <span className="text-primary-400">v3</span></span>
         </div>
 
-        <nav className="flex-1 space-y-2">
-          {menuItems.map((item) => (
-            <SidebarItem 
-              key={item.path}
-              {...item}
-              active={location.pathname === item.path}
-            />
+        <nav className="flex-1 space-y-1 overflow-y-auto">
+          {organization && (
+            <div className="px-4 pb-2 text-xs uppercase tracking-wider text-slate-500 truncate" title={organization.name}>{organization.name}</div>
+          )}
+          {officeItems.map((item) => (
+            <SidebarItem key={item.path} icon={item.icon} label={item.label} path={item.path} active={location.pathname === item.path} />
+          ))}
+          {selectedCompany && (
+            <div className="px-4 pt-5 pb-2 text-xs uppercase tracking-wider text-slate-500 truncate" title={selectedCompany.name}>{selectedCompany.name}</div>
+          )}
+          {companyItems.map((item) => (
+            <SidebarItem key={item.path} icon={item.icon} label={item.label} path={item.path} active={location.pathname === item.path} />
           ))}
         </nav>
 
@@ -89,7 +107,28 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         {/* Header */}
         <header className="h-20 border-b border-white/5 px-8 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-semibold">Tervetuloa takaisin{displayName && <>, <span className="text-primary-400">{displayName}</span></>}</h1>
+            {companies && companies.length > 0 ? (
+              <label className="flex items-center space-x-3">
+                <span className="text-sm text-slate-400">Yhtiö</span>
+                <select
+                  value={selectedCompany?.id ?? ''}
+                  onChange={(e) => selectCompany(e.target.value)}
+                  className="bg-slate-900/70 border border-white/10 rounded-xl py-2 px-3 text-sm font-semibold focus:outline-none focus:border-primary-500 max-w-xs"
+                >
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {role && (
+                  <span className={`text-xs px-2 py-1 rounded-md border flex items-center space-x-1 ${canWrite ? 'text-slate-300 border-white/10' : 'text-amber-300 border-amber-400/30 bg-amber-400/10'}`}>
+                    {!canWrite && <Eye className="w-3 h-3" />}
+                    <span>{COMPANY_ROLE_LABELS[role]}</span>
+                  </span>
+                )}
+              </label>
+            ) : (
+              <h1 className="text-xl font-semibold">Tervetuloa{displayName && <>, <span className="text-primary-400">{displayName}</span></>}</h1>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             <LanguageSwitcher />

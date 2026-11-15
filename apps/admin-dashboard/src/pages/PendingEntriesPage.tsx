@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, CheckCircle, CheckCheck, FileText, Link2, Loader2, Save, Trash2 } from 'lucide-react';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 import { deleteEntry, getAccounts, getLedgerByStatus, postAutoApprovable, postEntry, updateEntryLines } from '../api/accounting';
 import { getInvoices, updateInvoiceStatus } from '../api/invoices';
 import { listVouchers, openVoucherFile } from '../api/vouchers';
@@ -258,8 +258,8 @@ const PendingEntriesPage = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const companyId: string | undefined = companies?.[0]?.id;
+  const { companies, selectedCompany } = useCompany();
+  const companyId: string | undefined = selectedCompany?.id;
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ['pending', companyId],

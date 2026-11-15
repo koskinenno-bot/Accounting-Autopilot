@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { getMaintenanceCalculation, openReportPdf } from '../api/reports';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 import FiscalYearSelect from '../components/FiscalYearSelect';
 import { useState } from 'react';
 import { Download } from 'lucide-react';
@@ -13,8 +13,8 @@ const VastikeReportPage: React.FC = () => {
   const { t } = useTranslation();
   // Sama valinta kuin ReportsPagella: käyttäjän ensimmäinen yhtiö
   // (aiemmin kovakoodattu 'test-company-id' => raportti näytti aina nollia).
-  const { data: companies, isLoading: companiesLoading } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const companyId: string | undefined = companies?.[0]?.id;
+  const { selectedCompany, isLoading: companiesLoading } = useCompany();
+  const companyId: string | undefined = selectedCompany?.id;
   const [fiscalYearId, setFiscalYearId] = useState<string>();
 
   const { data, isLoading, error } = useQuery({

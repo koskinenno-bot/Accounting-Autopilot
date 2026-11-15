@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { File, Upload, Lock, Trash2, Shield, Download, Plus } from 'lucide-react';
 import { getDocuments, uploadDocument, archiveDocument, deleteDocument } from '../api/documents';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 
 const DocumentsPage = () => {
   const { t } = useTranslation();
@@ -12,17 +12,16 @@ const DocumentsPage = () => {
   const [uploadData, setUploadData] = useState({ name: '', type: 'OTHER' });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const selectedCompany = companies?.[0];
-
+  const { selectedCompany } = useCompany();
+  
   const { data: documents, isLoading } = useQuery({
     queryKey: ['documents', selectedCompany?.id],
-    queryFn: () => getDocuments(selectedCompany?.id),
+    queryFn: () => getDocuments(selectedCompany!.id),
     enabled: !!selectedCompany?.id,
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadDocument(file, selectedCompany.id, uploadData.name, uploadData.type),
+    mutationFn: (file: File) => uploadDocument(file, selectedCompany!.id, uploadData.name, uploadData.type),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setIsModalOpen(false);

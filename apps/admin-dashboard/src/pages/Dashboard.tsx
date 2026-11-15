@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { getLedger, getAccountingStats } from '../api/accounting';
-import { getCompanies, getCompanyStats } from '../api/companies';
+import { getCompanyStats } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 import { uploadVoucher } from '../api/vouchers';
 import { uploadStatement } from '../api/bank';
 import { useRef, useState, useEffect } from 'react';
@@ -97,10 +98,9 @@ const Dashboard = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bankInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
+  const { selectedCompany } = useCompany();
   const { data: companyStats } = useQuery({ queryKey: ['companyStats'], queryFn: getCompanyStats });
-  const selectedCompany = companies?.[0]; 
-
+  
   const { data: accStats } = useQuery({
     queryKey: ['accStats', selectedCompany?.id],
     queryFn: () => getAccountingStats(selectedCompany?.id),
@@ -110,7 +110,7 @@ const Dashboard = () => {
   const { data: ledger, isLoading: ledgerLoading } = useQuery({
     queryKey: ['ledger', selectedCompany?.id],
     queryFn: async () => {
-      const data = await getLedger(selectedCompany?.id);
+      const data = await getLedger(selectedCompany!.id);
       // For unposted entries, fetch ML suggestions
       return Promise.all(
         data.map(async (entry: any) => {
@@ -134,7 +134,7 @@ const Dashboard = () => {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadVoucher(file, selectedCompany.id),
+    mutationFn: (file: File) => uploadVoucher(file, selectedCompany!.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
       queryClient.invalidateQueries({ queryKey: ['vouchers'] });
@@ -144,7 +144,7 @@ const Dashboard = () => {
   });
 
   const bankMutation = useMutation({
-    mutationFn: (file: File) => uploadStatement(file, selectedCompany.id),
+    mutationFn: (file: File) => uploadStatement(file, selectedCompany!.id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ledger'] });
       queryClient.invalidateQueries({ queryKey: ['accStats'] });

@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '../../prisma/client';
+import { prisma } from '../db';
+import { ensureOrganization } from '../access';
 const { authenticator } = require('otplib');
 import QRCode from 'qrcode';
 
-const prisma = new PrismaClient();
 import { JWT_SECRET } from '../config';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, firstName, lastName } = req.body;
+    const { email, password, firstName, lastName, organizationName } = req.body;
 
     if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Virheellinen sähköpostiosoite' });
@@ -32,6 +32,18 @@ export const register = async (req: Request, res: Response) => {
         firstName,
         lastName,
         role: 'COMPANY_ADMIN',
+        // Rekisteröityjä on isännöintitoimisto, josta hän on omistaja
+        organizations: {
+          create: {
+            role: 'OWNER',
+            organization: {
+              create: {
+                name: (typeof organizationName === 'string' && organizationName.trim())
+                  || [firstName, lastName].filter(Boolean).join(' ') || email,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -74,6 +86,9 @@ export const login = async (req: Request, res: Response) => {
         return res.status(401).json({ error: 'Virheellinen MFA-koodi' });
       }
     }
+
+    // Ennen toimistomallia luodut käyttäjät saavat toimiston ensimmäisellä kirjautumisella
+    await ensureOrganization(user.id);
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
       expiresIn: '24h',

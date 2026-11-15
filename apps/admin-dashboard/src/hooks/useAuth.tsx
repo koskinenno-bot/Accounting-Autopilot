@@ -17,6 +17,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (credentials: any) => Promise<void>;
   register: (userData: any) => Promise<void>;
+  /** Kirjautuminen valmiilla vastauksella (esim. kutsun hyväksyntä). */
+  acceptSession: (data: { user: User; token: string }) => void;
   logout: () => void;
 }
 
@@ -55,6 +57,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(data.user));
   };
 
+  const acceptSession = (data: { user: User; token: string }) => {
+    setUser(data.user);
+    setToken(data.token);
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+  };
+
   const queryClient = useQueryClient();
 
   const logout = useCallback(() => {
@@ -62,6 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('selectedCompanyId');
     // Tyhjennetään välimuisti, ettei seuraava käyttäjä näe edellisen yhtiön tietoja
     queryClient.clear();
   }, [queryClient]);
@@ -73,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [logout]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, register, acceptSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

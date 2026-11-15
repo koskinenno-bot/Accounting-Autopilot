@@ -3,17 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Mail, CheckCircle, XCircle, Clock, Search, Filter } from 'lucide-react';
 import { getNotificationHistory } from '../api/notifications';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 
 const NotificationHistoryPage = () => {
   const { t } = useTranslation();
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const selectedCompany = companies?.[0];
-
+  const { selectedCompany } = useCompany();
+  
   const { data: history, isLoading } = useQuery({
     queryKey: ['notification-history', selectedCompany?.id],
-    queryFn: () => getNotificationHistory(selectedCompany?.id),
+    queryFn: () => getNotificationHistory(selectedCompany!.id),
     enabled: !!selectedCompany?.id,
   });
 

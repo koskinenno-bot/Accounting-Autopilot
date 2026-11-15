@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, XCircle, AlertTriangle, Lock, Upload, Plus } from 'lucide-react';
-import { getCompanies } from '../api/companies';
+import { useCompany } from '../hooks/useCompany';
 import {
   closeFiscalYear, createAccrual, createAsset, getAccounts, getAccruals, getAssets, getClosingChecklist,
   getDepreciation, postDepreciation, setOpeningBalances,
@@ -42,8 +42,8 @@ const ClosingPage = () => {
   const [assetForm, setAssetForm] = useState({ name: 'Rakennus', accountNumber: '1010', acquisitionDate: '', acquisitionCost: '', priorDepreciation: '0', method: 'DECLINING', rate: '4', usefulLifeYears: '', manualAmount: '' });
   const [accrualForm, setAccrualForm] = useState({ kind: 'accrued_expense', accountNumber: '', amount: '', description: '' });
 
-  const { data: companies } = useQuery({ queryKey: ['companies'], queryFn: getCompanies });
-  const companyId: string | undefined = companies?.[0]?.id;
+  const { selectedCompany } = useCompany();
+  const companyId: string | undefined = selectedCompany?.id;
   const enabled = !!fyId;
   const checklist = useQuery({ queryKey: ['closing', fyId], queryFn: () => getClosingChecklist(fyId!), enabled });
   const depreciation = useQuery({ queryKey: ['depreciation', fyId], queryFn: () => getDepreciation(fyId!), enabled });
