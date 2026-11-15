@@ -99,6 +99,13 @@ export interface InvoiceCreatedEvent {
     dueDate: string;
     /** Laskun päiväys = kirjauspäivä. Puuttuessa kirjataan käsittelypäivälle. */
     issueDate?: string;
+    /**
+     * Tulotilikohtainen erittely (esim. 3000 hoitovastike, 3900 rahoitusvastike, 3600 muistutusmaksu).
+     * Puuttuessa koko summa kirjataan hoitovastikkeisiin.
+     */
+    lines?: { accountNumber: string; amount: number; description?: string }[];
+    /** Muistutettava huoneisto tai laskun kuvaus kirjanpidon selitteeseen. */
+    description?: string;
   };
 }
 

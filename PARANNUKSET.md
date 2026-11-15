@@ -230,11 +230,41 @@ luvut, ja KOY:lle näytetään huomautus siitä, milloin laskelma on pakollinen.
 Numeroalueet: `apps/reporting-service/src/reports.py` (MAINT_EXPENSE_GROUPS ym.), testit `tests/test_reports.py`,
 tilikarttapohja `apps/accounting-service/src/services/chartOfAccountsService.ts`, testit `test/chart.test.ts`.
 
+## Vastikereskontra (moduuli 4, 15.11.2026)
+
+Dashboard → **Vastikkeet**, viisi välilehteä:
+
+- **Osakasluettelo:** tuonti CSV-tiedostona isännöintijärjestelmästä (sarakkeet tunnistetaan otsikoista: Huoneisto,
+  Pinta-ala, Osakkeet, Omistaja, Sähköposti, Puhelin, Henkilöt, Autopaikat; puolipiste tai pilkku, myös
+  Windows-merkistö). Esikatselu näyttää virheet ja puutteet ennen tuontia. Tuonti korvaa yhtiön osakasluettelon.
+  Huoneiston pinta-alaa, henkilömäärää ja autopaikkoja voi muokata suoraan.
+- **Perusteet:** yhtiön vastikelajit hintoineen: hoitovastike €/m², rahoitusvastike €/osake, vesimaksu €/hlö,
+  autopaikka €/kpl tai kiinteä €/huoneisto, kukin omalle tulotilille. Rahoitusvastikkeelle lainan pääoma, josta
+  huoneistojen lainaosuudet lasketaan osakkeiden suhteessa; pois maksettu osuus merkitään, jolloin huoneisto ei enää
+  maksa sitä rahoitusvastiketta. Viivästyskoron viitekorko ja muistutusasetukset (vain isännöitsijä).
+- **Laskutusajo:** kauden vastikkeet esikatseluna huoneistoittain erittelyineen, sitten laskut yhdellä napilla.
+  Kaudelle jo laskutetut huoneistot ohitetaan. Kirjanpitoon vienti syntyy vastikelajeittain (3000, 3900, 3100 …).
+- **Reskontra:** huoneistokohtaiset saldot (laskutettu, maksettu, avoinna, erääntynyt) ja laskut suorituksineen.
+  Viitesuoritukset kohdistuvat tiliotteelta automaattisesti, myös osasuoritukset; viitteettömän suorituksen voi
+  kirjata käsin.
+- **Muistutukset:** erääntyneet laskut, viivästyskorko tähän päivään (viitekorko + 7 %, korkolaki 4 §) ja
+  muistutusten lähetys. Muistutusmaksu on enintään 5 € ja maksuaika vähintään 14 pv (perintälaki). Kulu ja korko
+  laskutetaan omalla muistutuslaskulla (tilit 3600 ja 3960), alkuperäinen lasku maksetaan omalla viitteellään.
+
+Rajapinnat (invoicing-service): `GET /invoices/fees`, `POST /invoices/fees/run`, `GET /invoices/reskontra`,
+`POST /invoices/:id/payments`, `GET|POST /invoices/reminders` ym.; user-service `POST /shareholders/import`,
+`PATCH /shareholders/apartment`. Uudet taulut: FeeComponent, LoanPayoff, Payment, ReskontraSettings.
+Säännöt: `apps/invoicing-service/src/fees.ts` ja `src/reskontra.ts`, testit `test/fees.test.ts`;
+CSV-jäsennys `apps/user-service/src/shareholderImport.ts`.
+
+Huom: tarkista viitekorko (Suomen Pankki) Perusteet-välilehdeltä; oletus on 2 %. Muistutussähköpostit kulkevat
+notification-servicen kautta, joka ei vielä lähetä oikeaa postia (tuotantovalmius, moduuli 10).
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
 2. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
 3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ALV-velvollisten yhtiöiden ALV-käsittely.
-4. Myyntisaamisten ja ostovelkojen reskontraraportit sekä maksumuistutukset myöhässä oleville vastikkeille.
+4. ~~Vastikereskontra ja maksumuistutukset~~ (tehty, moduuli 4). Ostovelkojen reskontraraportti.
 5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
 6. Tilinpäätöksen liitetiedot ja toimintakertomus (AOYL 10:5–6 §) sekä tilintarkastajan käyttöoikeus.

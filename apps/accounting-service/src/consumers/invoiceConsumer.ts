@@ -2,9 +2,35 @@ import { InvoiceCreatedEvent, InvoiceStatusChangedEvent } from '@ai-accountant/t
 import { prisma } from '../db';
 import { ACCOUNTS } from '../accounts';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
+import { accountExists } from '../services/chartOfAccountsService';
+
+/**
+ * Laskun tulorivit tileittäin. Tuntematon tai käytöstä poistettu tili kirjataan hoitovastikkeisiin,
+ * jotta vienti ei kaadu (isännöitsijä näkee selitteestä alkuperäisen tilin ja voi oikaista luonnoksen).
+ */
+export const revenueLines = async (
+  companyId: string, amount: number, lines: { accountNumber: string; amount: number; description?: string }[] | undefined,
+  exists: (companyId: string, account: string) => Promise<boolean> = accountExists,
+) => {
+  const totalCents = Math.round(amount * 100);
+  const given = (lines ?? []).filter((l) => Math.round(Number(l.amount) * 100) !== 0);
+  const sum = given.reduce((s, l) => s + Math.round(Number(l.amount) * 100), 0);
+  if (!given.length || sum !== totalCents) {
+    return [{ accountNumber: ACCOUNTS.MAINTENANCE_FEES, cents: totalCents, description: 'Hoitovastiketulo' }];
+  }
+  const byAccount = new Map<string, { cents: number; description: string }>();
+  for (const l of given) {
+    const ok = /^\d{4,6}$/.test(String(l.accountNumber)) && (await exists(companyId, String(l.accountNumber)));
+    const account = ok ? String(l.accountNumber) : ACCOUNTS.MAINTENANCE_FEES;
+    const desc = ok ? (l.description || 'Vastiketulo') : `${l.description || 'Tulo'} (tili ${l.accountNumber} puuttuu tilikartasta)`;
+    const prev = byAccount.get(account);
+    byAccount.set(account, { cents: (prev?.cents ?? 0) + Math.round(Number(l.amount) * 100), description: prev ? `${prev.description}, ${desc}` : desc });
+  }
+  return [...byAccount.entries()].map(([accountNumber, v]) => ({ accountNumber, cents: v.cents, description: v.description }));
+};
 
 export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
-  const { invoiceId, companyId, amount, referenceNumber, dueDate, issueDate } = event.data;
+  const { invoiceId, companyId, amount, referenceNumber, dueDate, issueDate, lines, description } = event.data;
 
   console.log(`Creating accounting entry for new invoice: ${invoiceId}`);
 
@@ -27,7 +53,7 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
         fiscalYearId: await findOpenFiscalYearId(companyId, entryDate),
         entryDate,
         voucherNumber,
-        description: `Vastikelaskutus (Viite: ${referenceNumber})`,
+        description: `${description || 'Vastikelaskutus'} (Viite: ${referenceNumber})`,
         status: 'DRAFT',
         createdBy: 'system-invoicing',
         lines: {
@@ -39,13 +65,13 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
               description: `Vastikesuoritus (eräpäivä ${new Date(dueDate).toLocaleDateString('fi-FI')})`,
               companyId
             },
-            {
-              accountNumber: ACCOUNTS.MAINTENANCE_FEES, // Hoitovastikkeet
+            ...(await revenueLines(companyId, amount, lines)).map((l) => ({
+              accountNumber: l.accountNumber,
               debit: 0,
-              credit: amount,
-              description: 'Hoitovastiketulo',
-              companyId
-            }
+              credit: l.cents / 100,
+              description: l.description,
+              companyId,
+            })),
           ]
         }
       }

@@ -6,6 +6,7 @@ import { nextInvoiceNumber, referenceFor } from '../services/invoiceNumberServic
 import { assertCompanyAccess, serviceHeaders } from '../middleware/requireAuth';
 import { publishInvoiceCreated, publishInvoiceStatusChanged } from '../utils/kafka';
 import { v4 as uuidv4 } from 'uuid';
+import { recordPayment } from './reskontraController';
 
 const prisma = new PrismaClient();
 
@@ -108,7 +109,7 @@ export const getInvoices = async (req: Request, res: Response) => {
     if (!companyId) return res.status(400).json({ error: 'companyId is required' });
     const invoices = await prisma.invoice.findMany({
       where: { companyId: companyId as string },
-      include: { lines: true },
+      include: { lines: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
     res.json(invoices);
@@ -181,6 +182,15 @@ export const updateInvoiceStatus = async (req: Request, res: Response) => {
     if (!(await assertCompanyAccess(req, res, invoice.companyId))) return;
     if (!ALLOWED_TRANSITIONS[invoice.status].includes(status)) {
       return res.status(409).json({ error: `Laskun tilaa ei voi muuttaa: ${invoice.status} -> ${status}` });
+    }
+
+    // Maksetuksi merkintä käsin = suoritus jäljellä olevalle summalle, jotta reskontran saldo täsmää
+    const open = Math.round((Number(invoice.totalAmount) - Number(invoice.paidAmount)) * 100) / 100;
+    if (status === 'PAID' && open > 0) {
+      const paid = await recordPayment(invoice, {
+        amount: open, paidOn: new Date(), source: 'MANUAL', note: 'Merkitty maksetuksi', createdBy: (req as any).user?.userId ?? null,
+      });
+      return res.json(paid);
     }
 
     const updated = await prisma.invoice.update({ where: { id }, data: { status } });

@@ -30,13 +30,26 @@ model Invoice {
   status          InvoiceStatus @default(DRAFT)
   totalAmount     Decimal       @db.Decimal(15, 2)
   currency        String        @default("EUR")
+  /// FEE = vastikelasku (laskutusajo), REMINDER = maksumuistutus, OTHER = muu lasku
+  kind            String        @default("OTHER")
+  /// Vastikekausi YYYY-MM (vain FEE)
+  period          String?
+  /// Huoneiston tunnus, esim. "A 1" (reskontra seuraa huoneistoa, vaikka omistaja vaihtuu)
+  apartment       String?
+  shareholderId   String?
+  paidAmount      Decimal       @default(0) @db.Decimal(15, 2)
+  /// Muistutuslaskulla: muistutettu lasku
+  remindedInvoiceId String?
+  lastReminderAt  DateTime?
   
   lines           InvoiceLine[]
+  payments        Payment[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   @@unique([companyId, invoiceNumber])
   @@unique([companyId, referenceNumber])
+  @@index([companyId, period])
   @@index([companyId])
   @@index([status])
 }
@@ -56,6 +69,79 @@ model InvoiceLine {
   unitPrice   Decimal  @db.Decimal(15, 2)
   vatRate     Decimal  @db.Decimal(5, 2) // e.g., 24.00
   totalAmount Decimal  @db.Decimal(15, 2)
+  /// Tulotili kirjanpidossa (esim. 3000 hoitovastike, 3900 rahoitusvastike); puuttuessa 3000
+  accountNumber String?
   
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+/// Laskuun kohdistettu suoritus: pankista viitteellä tai käsin (osasuoritukset sallittu).
+model Payment {
+  id        String   @id @default(uuid())
+  invoiceId String
+  companyId String
+  amount    Decimal  @db.Decimal(15, 2)
+  paidOn    DateTime
+  /// BANK tai MANUAL
+  source    String
+  /// Pankkitapahtuman tunniste (arkistointitunnus); estää saman suorituksen kirjaamisen kahdesti
+  bankRef   String?
+  note      String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, bankRef])
+  @@index([companyId])
+}
+
+/// Yhtiön vastikeperuste: hoitovastike €/m², rahoitusvastike €/osake, vesimaksu €/hlö, autopaikka €/kpl tai kiinteä.
+model FeeComponent {
+  id            String   @id @default(uuid())
+  companyId     String
+  name          String
+  /// SQM, SHARES, PERSONS, PARKING tai FIXED
+  basis         String
+  unitPrice     Decimal  @db.Decimal(15, 4)
+  accountNumber String
+  /// Rahoitusvastike: lainaosuuden pois maksanut huoneisto vapautuu
+  loanCapital   Boolean  @default(false)
+  /// Yhtiölainan pääoma, josta lainaosuudet lasketaan osakkeiden suhteessa
+  loanAmount    Decimal? @db.Decimal(15, 2)
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  payoffs       LoanPayoff[]
+
+  @@index([companyId])
+}
+
+/// Huoneisto on maksanut lainaosuutensa pois: rahoitusvastiketta ei enää laskuteta.
+model LoanPayoff {
+  id          String       @id @default(uuid())
+  companyId   String
+  apartment   String
+  componentId String
+  amount      Decimal      @db.Decimal(15, 2)
+  paidOn      DateTime
+  note        String?
+  createdAt   DateTime     @default(now())
+
+  component   FeeComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, apartment, componentId])
+}
+
+/// Reskontran asetukset (viivästyskorko ja muistutukset).
+model ReskontraSettings {
+  companyId            String   @id
+  /// Viitekorko %, Suomen Pankki vahvistaa puolivuosittain; viivästyskorko = viitekorko + 7
+  referenceRate        Decimal  @default(2) @db.Decimal(5, 2)
+  reminderFee          Decimal  @default(5) @db.Decimal(15, 2)
+  reminderDaysAfterDue Int      @default(14)
+  paymentTermDays      Int      @default(14)
+  updatedAt            DateTime @updatedAt
 }
