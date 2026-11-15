@@ -260,11 +260,34 @@ CSV-jäsennys `apps/user-service/src/shareholderImport.ts`.
 Huom: tarkista viitekorko (Suomen Pankki) Perusteet-välilehdeltä; oletus on 2 %. Muistutussähköpostit kulkevat
 notification-servicen kautta, joka ei vielä lähetä oikeaa postia (tuotantovalmius, moduuli 10).
 
+## Ostolaskujen hyväksyntä ja maksaminen (moduuli 5, 15.11.2026)
+
+Dashboard → **Ostolaskut**, neljä välilehteä:
+
+- **Hyväksyttävät:** isännöitsijä hyväksyy tai hylkää laskun (hylkäykseen kirjoitetaan syy). Assistentti valmistelee
+  ja korjaa maksutiedot, mutta ei hyväksy (sisäinen valvonta). Yhtiökohtainen **hallituksen raja**: rajan ylittävät
+  laskut tarvitsevat lisäksi hallituksen jäsenen hyväksynnän. Ilman rajaa riittää isännöitsijä tai hallituksen jäsen.
+  Yksikin hylkäys hylkää laskun. Oman päätöksen voi perua ennen maksua.
+- **Tuplalaskuvaroitus:** sama toimittaja ja summa sekä sama viite, laskunumero tai eräpäivä.
+- **Maksutietojen korjaus:** saajan IBAN (mod 97 -tarkiste), viite (kotimainen 7-3-1 tai RF) ja eräpäivä.
+  IBANin vaihto nollaa hyväksynnät, jotta tilinumeroa ei voi vaihtaa hyväksynnän jälkeen.
+- **Maksettavat:** hyväksytyt laskut valitaan ja niistä tehdään **SEPA-maksuaineisto** (pain.001.001.03,
+  validoitu virallista XSD-skeemaa vasten). Isännöitsijä lataa tiedoston verkkopankkiin ja hyväksyy maksut siellä:
+  järjestelmä ei siirrä rahaa. Sama lasku voi olla vain yhdessä voimassa olevassa maksuerässä.
+- **Maksuerät:** lataa tiedosto uudelleen, merkitse lähetetyksi pankkiin (lukitsee erän) tai peru (laskut vapautuvat).
+  Lasku merkitään maksetuksi vasta, kun maksu näkyy tiliotteella (pankkitäsmäytys).
+
+Rajapinnat (accounting-service): `GET /accounting/purchases`, `PUT /accounting/purchases/policy`,
+`POST|DELETE /accounting/purchases/:id/decision`, `PATCH /accounting/purchases/:id`,
+`GET|POST /accounting/payment-batches`, `GET /accounting/payment-batches/:id/xml`,
+`PATCH /accounting/payment-batches/:id`. Uudet taulut: PurchaseApproval, ApprovalPolicy, PaymentBatch.
+Säännöt: `apps/accounting-service/src/payments.ts`, testit `test/payments.test.ts`.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
 2. Audit-lokin muuttumattomuus tietokantatasolla (Postgres-trigger, joka estää UPDATE/DELETE).
 3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ALV-velvollisten yhtiöiden ALV-käsittely.
-4. ~~Vastikereskontra ja maksumuistutukset~~ (tehty, moduuli 4). Ostovelkojen reskontraraportti.
+4. ~~Vastikereskontra ja maksumuistutukset~~ (tehty, moduuli 4). ~~Ostolaskujen hyväksyntä ja maksuaineisto~~ (tehty, moduuli 5).
 5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
 6. Tilinpäätöksen liitetiedot ja toimintakertomus (AOYL 10:5–6 §) sekä tilintarkastajan käyttöoikeus.

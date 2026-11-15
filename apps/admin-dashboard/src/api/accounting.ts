@@ -192,3 +192,81 @@ export const getQueue = async (companyIds: string[], includeSnoozed = false): Pr
 export const updateQueueTask = async (body: {
   companyId: string; itemKey: string; assignedTo?: string | null; snoozedUntil?: string | null; note?: string | null;
 }) => (await accountingApi.put('/accounting/queue/task', body)).data;
+
+// ---- Ostolaskujen hyväksyntä ja maksaminen (moduuli 5) ----
+
+export interface PurchasePolicy { boardLimit: number | null; debtorIban: string | null; debtorBic: string | null }
+
+export interface Purchase {
+  id: string;
+  supplierName: string;
+  supplierBusinessId: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string;
+  dueDate: string | null;
+  totalAmount: number;
+  referenceNumber: string | null;
+  iban: string | null;
+  expenseAccount: string;
+  status: 'PROPOSED' | 'BOOKED' | 'PAID';
+  voucherId: string | null;
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'NOT_REQUIRED';
+  waitingFor: string | null;
+  needsBoard: boolean;
+  approvals: { userId: string; role: string; decision: 'APPROVE' | 'REJECT'; comment: string | null; createdAt: string }[];
+  myDecision: 'APPROVE' | 'REJECT' | null;
+  paymentBatch: { id: string; executionDate: string; status: string } | null;
+  paymentBlocker: string | null;
+  duplicateOf: string | null;
+}
+
+export const getPurchases = async (companyId: string): Promise<{ policy: PurchasePolicy; myRole: string | null; invoices: Purchase[] }> =>
+  (await accountingApi.get('/accounting/purchases', { params: { companyId } })).data;
+
+export const decidePurchase = async (id: string, decision: 'APPROVE' | 'REJECT', comment?: string) =>
+  (await accountingApi.post(`/accounting/purchases/${id}/decision`, { decision, comment })).data;
+
+export const withdrawPurchaseDecision = async (id: string) =>
+  (await accountingApi.delete(`/accounting/purchases/${id}/decision`)).data;
+
+export const updatePurchaseDetails = async (id: string, body: { iban?: string; referenceNumber?: string; dueDate?: string }) =>
+  (await accountingApi.patch(`/accounting/purchases/${id}`, body)).data;
+
+export const updatePurchasePolicy = async (body: { companyId: string; boardLimit: number | null; debtorIban: string | null; debtorBic: string | null }) =>
+  (await accountingApi.put('/accounting/purchases/policy', body)).data as PurchasePolicy;
+
+export interface PaymentBatch {
+  id: string;
+  messageId: string;
+  executionDate: string;
+  debtorName: string;
+  debtorIban: string;
+  totalAmount: number;
+  count: number;
+  status: 'CREATED' | 'SENT' | 'CANCELLED';
+  createdAt: string;
+  sentAt: string | null;
+  invoices: { id: string; supplierName: string; invoiceNumber: string | null; totalAmount: number; status: string }[];
+}
+
+export const getPaymentBatches = async (companyId: string): Promise<PaymentBatch[]> =>
+  (await accountingApi.get('/accounting/payment-batches', { params: { companyId } })).data;
+
+export const createPaymentBatch = async (body: { companyId: string; invoiceIds: string[]; executionDate: string; debtorName: string; debtorIban?: string; debtorBic?: string }) =>
+  (await accountingApi.post('/accounting/payment-batches', body)).data as PaymentBatch;
+
+export const updatePaymentBatch = async (id: string, status: 'SENT' | 'CANCELLED') =>
+  (await accountingApi.patch(`/accounting/payment-batches/${id}`, { status })).data;
+
+/** Lataa maksuaineiston XML-tiedostona (haetaan tunnisteella, siksi ei suoraa linkkiä). */
+export const downloadPaymentBatch = async (batch: { id: string; executionDate: string; messageId: string }) => {
+  const { data } = await accountingApi.get(`/accounting/payment-batches/${batch.id}/xml`, { responseType: 'blob' });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `maksut-${batch.executionDate.slice(0, 10)}-${batch.messageId}.xml`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+};

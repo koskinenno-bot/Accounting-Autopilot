@@ -5,6 +5,7 @@ import { getOverview } from '../controllers/overviewController';
 import { getQueue, updateTask } from '../controllers/queueController';
 import { getAccounts } from '../services/chartOfAccountsService';
 import { createAccount, updateAccount } from '../controllers/accountController';
+import * as purchases from '../controllers/purchaseController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -50,5 +51,16 @@ router.get('/accounts', company, (async (req: Request, res: Response) => {
 // Tilikartan muokkaus (vain isännöitsijä; tarkistus käsittelijässä)
 router.post('/accounts', createAccount as any);
 router.patch('/accounts/:id', updateAccount as any);
+
+// Ostolaskujen hyväksyntä ja maksuaineistot (käyttöoikeus tarkistetaan käsittelijässä)
+router.get('/purchases', purchases.listPurchases as any);
+router.put('/purchases/policy', purchases.updatePolicy as any);
+router.post('/purchases/:id/decision', purchases.decide as any);
+router.delete('/purchases/:id/decision', purchases.withdrawDecision as any);
+router.patch('/purchases/:id', purchases.updatePaymentDetails as any);
+router.get('/payment-batches', purchases.listBatches as any);
+router.post('/payment-batches', purchases.createBatch as any);
+router.get('/payment-batches/:id/xml', purchases.downloadBatch as any);
+router.patch('/payment-batches/:id', purchases.updateBatch as any);
 
 export default router;

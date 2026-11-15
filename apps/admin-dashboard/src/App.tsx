@@ -23,6 +23,7 @@ import AuditPage from './pages/AuditPage';
 import VastikeReportPage from './pages/VastikeReportPage';
 import AccountsPage from './pages/AccountsPage';
 import FeesPage from './pages/FeesPage';
+import PurchasesPage from './pages/PurchasesPage';
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ function App() {
             <Route path="/queue" element={<ProtectedRoute><QueuePage /></ProtectedRoute>} />
             <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
             <Route path="/accounting" element={<ProtectedRoute><div className="glass-card p-8 text-center"><h2 className="text-2xl font-bold">Kirjanpidon hallinta</h2><p className="text-slate-400 mt-2">Tämä osio on työn alla.</p></div></ProtectedRoute>} />
+            <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
             <Route path="/fees" element={<ProtectedRoute><FeesPage /></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
             <Route path="/pending" element={<ProtectedRoute><PendingEntriesPage /></ProtectedRoute>} />

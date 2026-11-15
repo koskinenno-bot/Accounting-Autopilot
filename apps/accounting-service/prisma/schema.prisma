@@ -122,11 +122,66 @@ model PurchaseInvoice {
   status             PurchaseInvoiceStatus @default(PROPOSED)
   accountingEntryId  String?
   paymentEntryId     String?
+  /// Hyväksyntäkierto: PENDING, APPROVED tai REJECTED (ks. src/payments.ts approvalState)
+  approvalStatus     String   @default("PENDING")
+  rejectionReason    String?
+  /// Maksuerä, johon lasku on otettu (sama lasku ei voi olla kahdessa erässä)
+  paymentBatchId     String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  approvals          PurchaseApproval[]
+
   @@unique([companyId, supplierKey, invoiceNumber])
   @@index([companyId, status])
+}
+
+/// Ostolaskun hyväksyntä tai hylkäys (kuka, millä roolilla, milloin).
+model PurchaseApproval {
+  id         String          @id @default(uuid())
+  invoiceId  String
+  userId     String
+  /// Yhtiörooli hyväksyntähetkellä: MANAGER, ASSISTANT tai BOARD
+  role       String
+  /// APPROVE tai REJECT
+  decision   String
+  comment    String?
+  createdAt  DateTime        @default(now())
+
+  invoice    PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, userId])
+}
+
+/// Yhtiön hyväksyntäsääntö: rajan ylittävät laskut vaativat lisäksi hallituksen jäsenen hyväksynnän.
+model ApprovalPolicy {
+  companyId  String   @id
+  boardLimit Decimal? @db.Decimal(15, 2)
+  /// Maksajan tili maksuaineistoon
+  debtorIban String?
+  debtorBic  String?
+  updatedAt  DateTime @updatedAt
+}
+
+/// Maksuaineisto (SEPA pain.001), jonka isännöitsijä lähettää verkkopankkiin.
+model PaymentBatch {
+  id            String   @id @default(uuid())
+  companyId     String
+  messageId     String   @unique
+  executionDate DateTime
+  debtorName    String
+  debtorIban    String
+  debtorBic     String?
+  totalAmount   Decimal  @db.Decimal(15, 2)
+  count         Int
+  /// CREATED = ladattavissa, SENT = merkitty lähetetyksi pankkiin, CANCELLED = peruttu (laskut vapautuvat)
+  status        String   @default("CREATED")
+  xml           String
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  sentAt        DateTime?
+
+  @@index([companyId])
 }
 
 /// Käyttöomaisuus (esim. rakennus 1010) ja sen poistosuunnitelma.
