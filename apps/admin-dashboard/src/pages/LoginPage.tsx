@@ -22,7 +22,14 @@ const LoginPage = () => {
       await login({ email, password });
       navigate('/');
     } catch (err: any) {
-      setError(t('auth.error'));
+      // Erotellaan "palvelu ei käynnissä" väärästä salasanasta, jotta vian syy näkyy suoraan
+      if (!err?.response) {
+        setError('Kirjautumispalveluun ei saada yhteyttä. Palvelut käynnistyvät vielä tai user-service ei ole käynnissä: odota hetki tai käynnistä KAYNNISTA.bat uudelleen.');
+      } else if (err.response.status >= 500) {
+        setError(`Palvelinvirhe kirjautumisessa (${err.response.status}). Katso user-service-ikkunan viimeiset rivit.`);
+      } else {
+        setError(err.response.data?.error || t('auth.error'));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -52,7 +59,7 @@ const LoginPage = () => {
                 animate={{ opacity: 1, height: 'auto' }}
                 className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium"
               >
-                {t('auth.error')}
+                {error}
               </motion.div>
             )}
 
