@@ -3,6 +3,7 @@ import { prisma } from '../db';
 import { ACCOUNTS } from '../accounts';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
 import { accountExists } from '../services/chartOfAccountsService';
+import { salesRevenueLines } from '../vat';
 
 /**
  * Laskun tulorivit tileittäin. Tuntematon tai käytöstä poistettu tili kirjataan hoitovastikkeisiin,
@@ -27,6 +28,34 @@ export const revenueLines = async (
     byAccount.set(account, { cents: (prev?.cents ?? 0) + Math.round(Number(l.amount) * 100), description: prev ? `${prev.description}, ${desc}` : desc });
   }
   return [...byAccount.entries()].map(([accountNumber, v]) => ({ accountNumber, cents: v.cents, description: v.description }));
+};
+
+/**
+ * Tulorivit kirjanpitoon. Verolliset rivit (vatAmount) jaetaan verottomaan tuottoon ja ALV-velkaan 2880;
+ * muuten tilikohtainen yhdistely kuten ennen.
+ */
+export const invoiceRevenueLines = async (
+  companyId: string, amount: number, lines: { accountNumber: string; amount: number; description?: string; vatRate?: number; vatAmount?: number }[] | undefined,
+  exists: (companyId: string, account: string) => Promise<boolean> = accountExists,
+) => {
+  const taxed = (lines ?? []).some((l) => Number(l.vatAmount) > 0);
+  const totalCents = Math.round(amount * 100);
+  const sumCents = (lines ?? []).reduce((s, l) => s + Math.round(Number(l.amount) * 100), 0);
+  if (taxed && sumCents === totalCents) {
+    const checked = [];
+    for (const l of lines!) {
+      const ok = /^\d{4,6}$/.test(String(l.accountNumber)) && (await exists(companyId, String(l.accountNumber)));
+      checked.push({
+        accountNumber: ok ? String(l.accountNumber) : ACCOUNTS.MAINTENANCE_FEES,
+        gross: Number(l.amount), vatRate: l.vatRate, vatAmount: l.vatAmount,
+        description: ok ? (l.description || 'Tulo') : `${l.description || 'Tulo'} (tili ${l.accountNumber} puuttuu tilikartasta)`,
+      });
+    }
+    return salesRevenueLines(checked).map(({ vatCode, vatAmount, ...l }) => ({ ...l, vatCode: vatCode ?? null, vatAmount: vatAmount ?? null }));
+  }
+  return (await revenueLines(companyId, amount, lines, exists)).map((l) => ({
+    accountNumber: l.accountNumber, debit: 0, credit: l.cents / 100, description: l.description, vatCode: null, vatAmount: null,
+  }));
 };
 
 export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
@@ -65,13 +94,7 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
               description: `Vastikesuoritus (eräpäivä ${new Date(dueDate).toLocaleDateString('fi-FI')})`,
               companyId
             },
-            ...(await revenueLines(companyId, amount, lines)).map((l) => ({
-              accountNumber: l.accountNumber,
-              debit: 0,
-              credit: l.cents / 100,
-              description: l.description,
-              companyId,
-            })),
+            ...(await invoiceRevenueLines(companyId, amount, lines)).map((l) => ({ ...l, companyId })),
           ]
         }
       }

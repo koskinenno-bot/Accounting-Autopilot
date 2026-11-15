@@ -8,6 +8,7 @@ import { createAccount, updateAccount } from '../controllers/accountController';
 import * as purchases from '../controllers/purchaseController';
 import * as closingPackage from '../controllers/closingPackageController';
 import * as migration from '../controllers/migrationController';
+import * as vat from '../controllers/vatController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -39,8 +40,16 @@ router.get('/fiscal-years/:id/closing-checklist', fiscal.getClosingChecklist as 
 router.post('/fiscal-years/:id/opening-balances', fiscal.setOpeningBalances as any);
 router.get('/fiscal-years/:id/depreciation', fiscal.getDepreciation as any);
 router.post('/fiscal-years/:id/depreciation', fiscal.postDepreciation as any);
+// Arvonlisävero (moduuli 8)
+router.get('/vat/settings', vat.getSettings as any);
+router.put('/vat/settings', vat.updateSettings as any);
+router.get('/vat/periods', vat.listPeriods as any);
+router.get('/vat/return', vat.getReturn as any);
+router.get('/vat/return/file', vat.getReturnFile as any);
+router.post('/vat/settle', vat.settle as any);
 router.get('/fiscal-years/:id/closing-package', closingPackage.getClosingPackage as any);
 router.put('/fiscal-years/:id/closing-package', closingPackage.updateClosingPackage as any);
+router.get('/fiscal-years/:id/tax-return', closingPackage.getTaxReturn as any);
 router.get('/fiscal-years/:id/budget', closingPackage.getBudget as any);
 router.put('/fiscal-years/:id/budget', closingPackage.updateBudget as any);
 router.get('/fiscal-years/:id/accruals', fiscal.getAccruals as any);

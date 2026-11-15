@@ -17,6 +17,7 @@ const ComponentRow = ({ component, canManage, onSaved }: { component: FeeCompone
     loanCapital: component.loanCapital,
     loanAmount: component.loanAmount === null ? '' : String(component.loanAmount).replace('.', ','),
     isActive: component.isActive,
+    vatRate: String(component.vatRate ?? 0),
   });
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -25,6 +26,7 @@ const ComponentRow = ({ component, canManage, onSaved }: { component: FeeCompone
       ...draft,
       unitPrice: parseNum(draft.unitPrice),
       loanAmount: draft.loanAmount === '' ? null : parseNum(draft.loanAmount),
+      vatRate: Number(draft.vatRate),
     }),
     onSuccess: () => { setError(null); setSaved(true); onSaved(); },
     onError: (err) => setError(errorText(err)),
@@ -41,6 +43,16 @@ const ComponentRow = ({ component, canManage, onSaved }: { component: FeeCompone
       </td>
       <td className="p-2"><input className={`${inputClass} w-24 text-right`} disabled={!canManage} value={draft.unitPrice} onChange={(e) => set({ unitPrice: e.target.value })} /></td>
       <td className="p-2"><input className={`${inputClass} w-20`} disabled={!canManage} value={draft.accountNumber} onChange={(e) => set({ accountNumber: e.target.value })} /></td>
+      <td className="p-2">
+        <select className={inputClass} disabled={!canManage} value={draft.vatRate} aria-label={`ALV ${component.name}`}
+          title="Veroton vastike (0 %) tai verollinen vuokra, kun yhtiö on hakeutunut ALV-velvolliseksi. Hinta on veroton."
+          onChange={(e) => set({ vatRate: e.target.value })}>
+          <option value="0">0 %</option>
+          <option value="25.5">25,5 %</option>
+          <option value="13.5">13,5 %</option>
+          <option value="10">10 %</option>
+        </select>
+      </td>
       <td className="p-2 text-sm">
         <label className="flex items-center gap-2 whitespace-nowrap">
           <input type="checkbox" disabled={!canManage} checked={draft.loanCapital} onChange={(e) => set({ loanCapital: e.target.checked })} />
@@ -214,6 +226,7 @@ const SetupTab = ({ companyId, setup, canManage, onSaved }: { companyId: string;
                   <th className="p-2 font-medium">Peruste</th>
                   <th className="p-2 font-medium">Hinta</th>
                   <th className="p-2 font-medium">Tulotili</th>
+                  <th className="p-2 font-medium">ALV</th>
                   <th className="p-2 font-medium">Laina</th>
                   <th className="p-2 font-medium" />
                   <th className="p-2" />

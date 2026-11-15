@@ -382,11 +382,50 @@ Enable Bankingin sopimuksen ja KYC-tarkastuksen.
 
 Jatkokehitys: pankin saldon ja kirjanpidon pankkitilin (1900) täsmäytys sivulla; tuotantoversiossa paluuosoite https-osoitteeksi.
 
+## Arvonlisävero ja veroilmoitus (moduuli 8, 15.11.2026)
+
+Taloyhtiö on yleensä arvonlisäverovelvollinen vain, jos se on hakeutunut verovelvolliseksi liiketilojen vuokrauksesta
+(vastikkeet ja asuntojen vuokrat ovat verottomia). Kannat 1.1.2026 alkaen: 25,5 %, 13,5 % ja 10 %.
+
+### Arvonlisävero (sivu **Arvonlisävero**)
+- Asetukset yhtiökohtaisesti: verovelvollinen kyllä/ei, verokausi (kuukausi, neljännes, vuosi), alkupäivä,
+  vähennysoikeus % (osittain verollinen kiinteistö, esim. 60 %), Y-tunnus ja yhteyshenkilön puhelin.
+- Ostolaskut: vähennyskelpoinen osuus verosta kirjataan tilille 1750, loput kuluun. Laskun ALV-tiedot tulevat
+  tulkinnasta; vero huomioidaan vain, kun yhtiö on verovelvollinen ja laskun päivä on alkupäivän jälkeen.
+- Myynti: vastikkeiden perusteille voi antaa ALV-kannan (Vastikkeet → Perusteet → ALV). Verollinen rivi kirjataan
+  nettona tuottotilille ja vero tilille 2880. Verottomat vastikkeet laskulla eivät muutu.
+- Käsin kirjattaville riveille voi antaa ALV-koodin (S255, S135, S10, S0, P, RCB rakentamispalvelut, EU-ostot, maahantuonti).
+- Kausiveroilmoitus lasketaan kirjatuista vienneistä OmaVeron kenttätunnuksin (301–320, 308 = maksettava/palautettava).
+  Hyväksymättömistä luonnoksista, joissa on veroa, ja 2880-tilin erosta varoitetaan.
+- **Tilitys**: päättyneen kauden vero siirretään yhdellä viennillä (`ALV-<kausi>`) tilille 2885
+  (maksettava tai palautettava). Kausi tilitetään vain kerran. Vaatii isännöitsijän oikeuden.
+- Ilmoitus annetaan OmaVerossa: luvut näkyvät sivulla kenttätunnuksineen ja kopioidaan sinne.
+- **Ilmoitin.fi-tiedosto** (VSRALVKV) on valmiina, mutta se vaatii ohjelmistotoimittajan tunnisteen:
+  `VERO_SOFTWARE_ID=<ohjelmistoyrityksen Y-tunnus>_<tunniste>` ja `VERO_SOFTWARE_NAME` accounting-servicen .env-tiedostoon.
+  Tunniste saadaan vasta, kun tuotteella on oma yritys. Ilman sitä latausnappi ei näy.
+- Rajapinnat (accounting 3002): `GET/PUT /accounting/vat/settings`, `GET /accounting/vat/periods`,
+  `GET /accounting/vat/return`, `GET /accounting/vat/return/file`, `POST /accounting/vat/settle`.
+
+### Veroilmoitus 4 (Tilinpäätöspaketti → **Veroilmoitus**)
+- **Korjaus kehityssuunnitelmaan**: asunto-osakeyhtiö ja kiinteistöosakeyhtiö antavat veroilmoituksen **4**
+  (asunto- ja kiinteistöyhteisö), ei 6C. Lomake 6B tarvitaan vain, jos yhtiöllä on elinkeinotoiminnan tuloa.
+- Rivit muodostetaan tuloslaskelman tileistä: vastikkeet (30xx, pääomavastikkeet 39xx), vuokrat (31xx–38xx),
+  korkotuotot, muut tuotot, hoitokulut, poistot, korkomenot ja tuloverot (vähennyskelvottomia, Verotus-sarake 0).
+- Jokaisella rivillä on Kirjanpito- ja Verotus-sarake. Lopputuloksena verotettava tulo tai vahvistettava tappio.
+- Varoitukset: tuloutetut pääomavastikkeet (veronalaista tuloa, jos niitä ei ole rahastoitu) ja poistot
+  (täytä lomake 62, verotuksen enimmäismäärä). Ilmoitus jätetään OmaVerossa, yleensä 4 kk tilikauden päättymisestä.
+- Rajapinta: `GET /accounting/fiscal-years/:id/tax-return`.
+
+### Seuraavat askeleet
+- Verohallinnon rajapinta (ilmoitusten lähetys suoraan): vaatii ohjelmistokehittäjän rekisteröitymisen ja varmenteen
+  (Verohallinnon rajapintapalvelu, "Ilmoitustiedostojen lähetys"). Tehdään, kun tuotteella on oma yritys.
+- Yksikkötestit: accounting-service 46 (ALV-laskenta, kaudet, Ilmoitin-tiedosto, Y-tunnus, veroilmoitus 4).
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).
 2. ~~Audit-lokin muuttumattomuus tietokantatasolla~~ (tehty, moduuli 10).
-3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ALV-velvollisten yhtiöiden ALV-käsittely.
+3. ~~Taloyhtiön tilikartta ja raporttikaavat~~ (tehty, moduuli 3). ~~ALV-velvollisten yhtiöiden ALV-käsittely~~ (tehty, moduuli 8).
 4. ~~Vastikereskontra ja maksumuistutukset~~ (tehty, moduuli 4). ~~Ostolaskujen hyväksyntä ja maksuaineisto~~ (tehty, moduuli 5).
 5. ~~Usean yhtiön valinta dashboardiin~~ (tehty, moduuli 1).
 6. ~~Tilinpäätöksen liitetiedot ja toimintakertomus~~ (tehty, moduuli 7). Tilintarkastajan käyttöoikeus (rooli AUDITOR on jo olemassa).

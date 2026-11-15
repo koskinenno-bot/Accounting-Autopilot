@@ -32,7 +32,7 @@ const userOf = (req: Request) => (req as any).user?.userId ?? null;
 
 const toInput = (c: any): FeeComponentInput => ({
   id: c.id, name: c.name, basis: c.basis as FeeBasis, unitPrice: Number(c.unitPrice), accountNumber: c.accountNumber,
-  loanCapital: c.loanCapital, isActive: c.isActive,
+  loanCapital: c.loanCapital, isActive: c.isActive, vatRate: Number(c.vatRate ?? 0),
 });
 
 /**
@@ -143,6 +143,11 @@ const validateComponent = (body: any, partial: boolean) => {
     const l = body.loanAmount === null || body.loanAmount === '' ? null : num(body.loanAmount);
     if (l !== null && (!Number.isFinite(l) || l < 0)) throw new HttpError(400, 'Lainan pääoma on virheellinen');
     out.loanAmount = l;
+  }
+  if (body.vatRate !== undefined) {
+    const v = body.vatRate === null || body.vatRate === '' ? 0 : num(body.vatRate);
+    if (![0, 10, 13.5, 25.5].includes(v)) throw new HttpError(400, 'ALV-prosentti on 0, 10, 13,5 tai 25,5');
+    out.vatRate = v;
   }
   if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
   if (body.sortOrder !== undefined && Number.isInteger(Number(body.sortOrder))) out.sortOrder = Number(body.sortOrder);
@@ -272,7 +277,7 @@ export const runFees = handle(async (req, res) => {
         lines: {
           create: fee.lines.map((l) => ({
             description: `${l.description} ${label}`, quantity: l.quantity, unitPrice: l.unitPrice,
-            vatRate: 0, totalAmount: l.amount, accountNumber: l.accountNumber,
+            vatRate: l.vatRate, totalAmount: l.amount, accountNumber: l.accountNumber,
           })),
         },
       },
@@ -285,7 +290,10 @@ export const runFees = handle(async (req, res) => {
         invoiceId: invoice.id, companyId, amount: fee.total, referenceNumber,
         dueDate: due.toISOString(), issueDate: issued.toISOString(),
         description: `Vastikkeet ${label}, ${fee.apartment}`,
-        lines: fee.lines.map((l) => ({ accountNumber: l.accountNumber, amount: l.amount, description: l.description })),
+        lines: fee.lines.map((l) => ({
+          accountNumber: l.accountNumber, amount: l.amount, description: l.description,
+          ...(l.vatAmount ? { vatRate: l.vatRate, vatAmount: l.vatAmount } : {}),
+        })),
       },
     }).catch((err) => console.error('Kirjanpitotapahtuman lähetys epäonnistui:', err?.message));
   }

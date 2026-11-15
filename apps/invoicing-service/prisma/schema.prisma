@@ -109,6 +109,8 @@ model FeeComponent {
   loanCapital   Boolean  @default(false)
   /// Yhtiölainan pääoma, josta lainaosuudet lasketaan osakkeiden suhteessa
   loanAmount    Decimal? @db.Decimal(15, 2)
+  /// ALV-prosentti (0 = veroton vastike; esim. 25.5 liiketilan vuokra, kun yhtiö on hakeutunut verovelvolliseksi)
+  vatRate       Decimal  @db.Decimal(5, 2) @default(0)
   sortOrder     Int      @default(0)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())

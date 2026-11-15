@@ -46,6 +46,7 @@ export const TATO_TEMPLATE: { number: string; name: string; type: AccountType }[
   { number: '2800', name: 'Ostovelat', type: A.LIABILITY },
   { number: '2850', name: 'Muut velat (ennakonpidätykset, sivukulut)', type: A.LIABILITY },
   { number: '2880', name: 'Arvonlisäverovelka', type: A.LIABILITY },
+  { number: '2885', name: 'Arvonlisävero, tilitettävä / palautettava', type: A.LIABILITY },
   { number: '2900', name: 'Siirtovelat', type: A.LIABILITY },
 
   // HOITOTUOTOT

@@ -5,17 +5,18 @@ import { useCompany } from '../hooks/useCompany';
 import FiscalYearSelect, { fiscalYearLabel } from '../components/FiscalYearSelect';
 import { getClosingPackage, openBookPdf } from '../api/reports';
 import type { BalanceDetail, BookPdf, ClosingPackageView, PackageSection } from '../api/reports';
-import { updateClosingPackage } from '../api/accounting';
+import { getTaxReturn, updateClosingPackage } from '../api/accounting';
 import type { ClosingPackageUpdate } from '../api/accounting';
 import { ErrorBox, InfoBox, eur, inputClass, smallButton } from '../components/fees/common';
 
-type Tab = 'report' | 'notes' | 'balance' | 'sign' | 'print';
+type Tab = 'report' | 'notes' | 'balance' | 'sign' | 'print' | 'tax';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'report', label: 'Toimintakertomus' },
   { key: 'notes', label: 'Liitetiedot' },
   { key: 'balance', label: 'Tase-erittelyt' },
   { key: 'sign', label: 'Allekirjoitus' },
   { key: 'print', label: 'Tulosteet' },
+  { key: 'tax', label: 'Veroilmoitus' },
 ];
 
 // reporting-service palauttaa virheen kentässä detail, accounting-service kentässä error
@@ -290,6 +291,76 @@ const PrintTab = ({ companyId, fyId, missing }: { companyId: string; fyId: strin
   );
 };
 
+const TaxTab = ({ fyId }: { fyId: string }) => {
+  const { data, isLoading, error } = useQuery({ queryKey: ['taxReturn', fyId], queryFn: () => getTaxReturn(fyId) });
+  if (isLoading) return <div className="glass-card h-48 animate-pulse" />;
+  if (error || !data) return <ErrorBox text={`Veroilmoitusta ei saatu laskettua: ${errText(error)}`} />;
+  const t = data.totals;
+  const section = (kind: 'income' | 'expense', title: string, booksTotal: number, taxTotal: number) => (
+    <>
+      <tr><td colSpan={3} className="pt-4 pb-1 text-xs uppercase tracking-wide text-slate-500">{title}</td></tr>
+      {data.rows.filter((r) => r.kind === kind).map((r) => (
+        <tr key={r.key} className="border-t border-white/5 align-top">
+          <td className="py-2 pr-4">
+            <div>{r.label}</div>
+            {r.accounts.length > 0 && <div className="text-xs text-slate-500">Tilit {r.accounts.join(', ')}</div>}
+            {r.note && <div className="text-xs text-amber-300/80">{r.note}</div>}
+          </td>
+          <td className="py-2 text-right font-mono">{eur(r.books)}</td>
+          <td className="py-2 text-right font-mono">{eur(r.tax)}</td>
+        </tr>
+      ))}
+      <tr className="border-t border-white/10 font-semibold">
+        <td className="py-2">Yhteensä</td>
+        <td className="py-2 text-right font-mono">{eur(booksTotal)}</td>
+        <td className="py-2 text-right font-mono">{eur(taxTotal)}</td>
+      </tr>
+    </>
+  );
+  return (
+    <div className="space-y-4">
+      <InfoBox>{`Asunto- ja kiinteistöyhteisön veroilmoitus (lomake 4). Luvut täytetään OmaVerossa Kirjanpito- ja Verotus-sarakkeisiin. Viimeinen jättöpäivä on yleensä neljän kuukauden kuluttua tilikauden päättymisestä (n. ${new Date(data.dueHint).toLocaleDateString('fi-FI')}); tarkista oma eräpäivä OmaVerosta.`}</InfoBox>
+      {data.warnings.length > 0 && (
+        <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200 space-y-1">
+          {data.warnings.map((w) => <div key={w} className="flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />{w}</div>)}
+        </div>
+      )}
+      <div className="glass-card p-5 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-slate-400 text-left">
+              <th className="pb-2 font-medium">Rivi</th>
+              <th className="pb-2 font-medium text-right w-36">Kirjanpito</th>
+              <th className="pb-2 font-medium text-right w-36">Verotus</th>
+            </tr>
+          </thead>
+          <tbody>
+            {section('income', 'Tuotot', t.booksIncome, t.taxIncome)}
+            {section('expense', 'Kulut', t.booksExpense, t.taxExpense)}
+            <tr className="border-t-2 border-white/20 font-semibold">
+              <td className="py-3">Tulos</td>
+              <td className="py-3 text-right font-mono">{eur(t.booksResult)}</td>
+              <td className="py-3 text-right font-mono">{eur(t.taxIncome - t.taxExpense)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="glass-card p-5">
+          <div className="text-sm text-slate-400">Verotettava tulo</div>
+          <div className={`text-2xl font-mono font-semibold mt-1 ${t.taxableIncome ? 'text-amber-300' : ''}`}>{eur(t.taxableIncome)}</div>
+          {t.taxableIncome > 0 && <div className="text-xs text-slate-400 mt-1">Yhteisövero maksetaan tästä. Aiempien vuosien vahvistetut tappiot vähennetään verotuksessa.</div>}
+        </div>
+        <div className="glass-card p-5">
+          <div className="text-sm text-slate-400">Vahvistettava tappio</div>
+          <div className="text-2xl font-mono font-semibold mt-1">{eur(t.confirmedLoss)}</div>
+          {t.confirmedLoss > 0 && <div className="text-xs text-slate-400 mt-1">Tappio vähennetään seuraavien 10 vuoden tuloista.</div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const FinancialStatementsPage = () => {
   const { selectedCompany, canWrite, canManage } = useCompany();
   const companyId = selectedCompany?.id as string | undefined;
@@ -349,6 +420,7 @@ const FinancialStatementsPage = () => {
             <SignTab key={data.package.updatedAt ?? 'new'} view={data} readOnly={readOnly} canWrite={canWrite} canManage={canManage} onSave={save} />
           )}
           {tab === 'print' && companyId && fyId && <PrintTab companyId={companyId} fyId={fyId} missing={data.missing} />}
+          {tab === 'tax' && fyId && <TaxTab fyId={fyId} />}
         </>
       )}
     </div>

@@ -25,6 +25,8 @@ export interface FeeComponentInput {
   /** Rahoitusvastike: lainaosuuden pois maksanut huoneisto vapautuu tästä komponentista. */
   loanCapital: boolean;
   isActive: boolean;
+  /** ALV-prosentti (esim. 25.5 liiketilan vuokralle, kun yhtiö on hakeutunut verovelvolliseksi). Hinta on veroton. */
+  vatRate?: number;
 }
 
 export interface ApartmentInput {
@@ -41,8 +43,11 @@ export interface FeeLine {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** Rivin summa verollisena (= net + vatAmount). */
   amount: number;
   accountNumber: string;
+  vatRate: number;
+  vatAmount: number;
 }
 
 export interface ApartmentFee {
@@ -106,13 +111,17 @@ export const calculateFees = (
       const quantity = quantityFor(c.basis, a);
       const amountCents = cents(quantity * c.unitPrice);
       if (!(quantity > 0) || amountCents <= 0) continue;
+      const vatRate = Number(c.vatRate) > 0 ? Number(c.vatRate) : 0;
+      const vatCents = Math.round((amountCents * vatRate) / 100);
       lines.push({
         componentId: c.id,
         description: c.name,
         quantity,
         unitPrice: c.unitPrice,
-        amount: amountCents / 100,
+        amount: (amountCents + vatCents) / 100,
         accountNumber: c.accountNumber,
+        vatRate,
+        vatAmount: vatCents / 100,
       });
     }
     if (!lines.length) continue;

@@ -1,3 +1,4 @@
+import { VAT_CODES } from '../vat';
 import { Request, Response } from 'express';
 import { EntryStatus } from '../../prisma/client';
 import axios from 'axios';
@@ -65,6 +66,7 @@ export const createEntry = async (req: Request, res: Response) => {
             debit: toCents(line.debit) / 100,
             credit: toCents(line.credit) / 100,
             description: line.description,
+            ...vatOf(line),
             companyId, // pakollinen: rivi viittaa tiliin (companyId, accountNumber)
           }))
         }
@@ -118,6 +120,11 @@ const learnFromCorrection = async (before: EntryWithLines, after: EntryWithLines
   }
 };
 
+/** Rivin ALV-koodi ja veron määrä (vain tunnetut koodit). */
+const vatOf = (line: any) => (line?.vatCode && VAT_CODES[line.vatCode]
+  ? { vatCode: String(line.vatCode), vatAmount: toCents(line.vatAmount ?? 0) / 100 }
+  : { vatCode: null, vatAmount: null });
+
 export const updateEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -146,13 +153,17 @@ export const updateEntry = async (req: Request, res: Response) => {
       if (lines !== undefined) {
         await tx.accountingLine.deleteMany({ where: { entryId: id } });
         await tx.accountingLine.createMany({
-          data: lines.map((line: any) => ({
+          data: lines.map((line: any, i: number) => ({
             entryId: id,
             companyId: existing.companyId,
             accountNumber: String(line.accountNumber),
             debit: toCents(line.debit) / 100,
             credit: toCents(line.credit) / 100,
             description: line.description,
+            // ALV-koodi säilyy, jos muokkaus ei sitä lähetä (esim. pelkkä tilin vaihto)
+            ...(line.vatCode === undefined && existing.lines[i]
+              ? { vatCode: existing.lines[i].vatCode, vatAmount: existing.lines[i].vatAmount }
+              : vatOf(line)),
           })),
         });
       }

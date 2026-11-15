@@ -20,6 +20,8 @@ export interface FeeComponent {
   loanCapital: boolean;
   loanAmount: number | null;
   isActive: boolean;
+  /** ALV % (0 = veroton). Hinta on veroton, vero lisätään laskulle. */
+  vatRate?: number;
 }
 
 export interface Apartment {

@@ -1,3 +1,5 @@
+import { purchaseLines } from '../vat';
+import { loadVatSettings } from '../controllers/vatController';
 import { VoucherClassifiedEvent } from '@ai-accountant/types';
 import { prisma } from '../db';
 import { ACCOUNTS } from '../accounts';
@@ -113,6 +115,7 @@ export const handleVoucherClassified = async (event: VoucherClassifiedEvent) => 
     const voucherNumber = extraction.invoiceNumber ? `OL-${key}-${extraction.invoiceNumber}` : `V-${voucherId}`;
     const description = `Ostolasku: ${extraction.supplierName}${extraction.invoiceNumber ? `, nro ${extraction.invoiceNumber}` : ''}`;
 
+    const vatSettings = await loadVatSettings(companyId);
     await prisma.$transaction(async (tx) => {
       const entry = await tx.accountingEntry.create({
         data: {
@@ -129,10 +132,13 @@ export const handleVoucherClassified = async (event: VoucherClassifiedEvent) => 
           reviewNote: [learned ? `Tili opittu aiemmista korjauksista` : extraction.accountReason, ...issues]
             .filter(Boolean).join(' · ') || null,
           lines: {
-            create: [
-              { accountNumber: expenseAccount, debit: amount, credit: 0, description: extraction.supplierName, companyId },
-              { accountNumber: ACCOUNTS.PAYABLES, debit: 0, credit: amount, description: 'Ostovelat', companyId },
-            ],
+            // ALV-velvollinen yhtiö: vähennettävä vero tilille 1750 vähennysoikeuden mukaan (moduuli 8)
+            create: purchaseLines({
+              gross: amount,
+              vat: vatSettings.registered && (!vatSettings.registeredFrom || invoiceDate >= vatSettings.registeredFrom) ? extraction.vatAmount : 0,
+              deductionPercent: vatSettings.deductionPercent,
+              expenseAccount, payableAccount: ACCOUNTS.PAYABLES, description: extraction.supplierName || 'Ostolasku',
+            }).map((l) => ({ ...l, companyId })),
           },
         },
       });

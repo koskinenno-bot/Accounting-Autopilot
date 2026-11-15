@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { EntryStatus } from '../../prisma/client';
 import { prisma } from '../db';
 import { AccessLevel, assertCompanyAccess } from '../middleware/requireAuth';
+import { form4 } from '../taxReturn4';
 
 /**
  * Tilinpäätöspaketin tekstit (toimintakertomus, liitetiedot, tase-erittelyt, allekirjoittajat) ja talousarvio.
@@ -151,6 +152,20 @@ const actualsFor = async (companyId: string, fy: { startDate: Date; endDate: Dat
   }
   return Object.fromEntries(Object.entries(cents).map(([acc, c]) => [acc, naturalAmount(acc, c)]));
 };
+
+/** GET /fiscal-years/:id/tax-return : veroilmoitus 4 (asunto- ja kiinteistöyhteisö) kirjanpidosta. */
+export const getTaxReturn = handle(async (req, res) => {
+  const fy = await loadFiscalYear(req, res, 'read');
+  if (!fy) return;
+  const actual = await actualsFor(fy.companyId, fy);
+  const assets = await prisma.fixedAsset.count({ where: { companyId: fy.companyId, isActive: true } });
+  const result = form4(actual);
+  if (assets && result.rows.find((r) => r.key === 'poistot')?.books) {
+    result.warnings.push('Poistot: täytä lomake 62 (poistoerittely) ja varmista, että Verotus-sarakkeen poisto ei ylitä verotuksen enimmäismäärää.');
+  }
+  const due = new Date(Date.UTC(fy.endDate.getUTCFullYear(), fy.endDate.getUTCMonth() + 4, 1));
+  res.json({ fiscalYear: { id: fy.id, startDate: fy.startDate, endDate: fy.endDate, status: fy.status }, ...result, dueHint: due });
+});
 
 export const getBudget = handle(async (req, res) => {
   const fy = await loadFiscalYear(req, res, 'read');

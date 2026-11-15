@@ -298,3 +298,18 @@ model AccountMapping {
 
   @@unique([companyId, sourceAccount])
 }
+
+/// Arvonlisäverotus: yhtiö (yleensä KOY) on hakeutunut verovelvolliseksi kiinteistön käyttöoikeuden luovutuksesta.
+model VatSettings {
+  companyId        String   @id
+  registered       Boolean  @default(false)
+  /// MONTH, QUARTER tai YEAR (verokauden pituus)
+  period           String   @default("MONTH")
+  /// Yhteisten kulujen vähennysoikeus prosentteina (osittain verollinen käyttö), 0–100
+  deductionPercent Decimal  @db.Decimal(5, 2) @default(100)
+  registeredFrom   DateTime?
+  businessId       String?
+  contactPhone     String?
+  updatedBy        String?
+  updatedAt        DateTime @updatedAt
+}

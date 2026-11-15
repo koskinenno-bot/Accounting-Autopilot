@@ -103,7 +103,7 @@ export interface InvoiceCreatedEvent {
      * Tulotilikohtainen erittely (esim. 3000 hoitovastike, 3900 rahoitusvastike, 3600 muistutusmaksu).
      * Puuttuessa koko summa kirjataan hoitovastikkeisiin.
      */
-    lines?: { accountNumber: string; amount: number; description?: string }[];
+    lines?: { accountNumber: string; amount: number; description?: string; vatRate?: number; vatAmount?: number }[];
     /** Muistutettava huoneisto tai laskun kuvaus kirjanpidon selitteeseen. */
     description?: string;
   };

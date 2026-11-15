@@ -316,3 +316,51 @@ export const importMigration = async (body: {
 }) => (await accountingApi.post('/accounting/migration/import', body)).data as { lines: number; result: number; mappings: number; openingEntryId: string | null };
 export const undoMigration = async (fiscalYearId: string) =>
   (await accountingApi.delete(`/accounting/migration/${fiscalYearId}`)).data;
+
+// --- Arvonlisävero (moduuli 8) ---
+export interface VatSettings {
+  companyId: string; registered: boolean; period: 'MONTH' | 'QUARTER' | 'YEAR'; deductionPercent: number;
+  registeredFrom: string | null; businessId: string | null; contactPhone: string | null;
+}
+export interface VatPeriodRow {
+  key: string; label: string; start: string; end: string; due: string; ended: boolean;
+  payable: number; output: number; deductible: number; settled: boolean; warnings: number;
+}
+export interface VatReturn {
+  period: { key: string; label: string; start: string; end: string; due: string; length: string };
+  fields: { code: string; label: string; amount: number }[];
+  payable: number; warnings: string[];
+  settlement: { id: string; entryDate: string; status: string } | null;
+  preview: { accountNumber: string; debit: number; credit: number; description?: string }[];
+}
+export const getVatSettings = async (companyId: string) =>
+  (await accountingApi.get('/accounting/vat/settings', { params: { companyId } })).data as { settings: VatSettings; softwareFileEnabled: boolean };
+export const saveVatSettings = async (body: Partial<VatSettings> & { companyId: string }) =>
+  (await accountingApi.put('/accounting/vat/settings', body)).data as { settings: VatSettings };
+export const getVatPeriods = async (companyId: string, year: number) =>
+  (await accountingApi.get('/accounting/vat/periods', { params: { companyId, year } })).data as { year: number; periods: VatPeriodRow[] };
+export const getVatReturn = async (companyId: string, period: string) =>
+  (await accountingApi.get('/accounting/vat/return', { params: { companyId, period } })).data as VatReturn;
+export const settleVat = async (companyId: string, period: string) =>
+  (await accountingApi.post('/accounting/vat/settle', { companyId, period })).data as { payable: number };
+export const downloadVatFile = async (companyId: string, period: string) => {
+  const res = await accountingApi.get('/accounting/vat/return/file', { params: { companyId, period }, responseType: 'blob' });
+  const name = /filename="([^"]+)"/.exec(res.headers['content-disposition'] || '')?.[1] || `ALV_${period}.txt`;
+  const url = URL.createObjectURL(res.data);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+};
+
+// --- Veroilmoitus 4 (moduuli 8) ---
+
+export interface TaxReturnRow { key: string; label: string; kind: 'income' | 'expense'; books: number; tax: number; accounts: string[]; note?: string }
+export interface TaxReturnView {
+  fiscalYear: { id: string; startDate: string; endDate: string; status: string };
+  rows: TaxReturnRow[];
+  totals: { booksIncome: number; booksExpense: number; booksResult: number; taxIncome: number; taxExpense: number; taxableIncome: number; confirmedLoss: number };
+  warnings: string[];
+  dueHint: string;
+}
+export const getTaxReturn = async (fiscalYearId: string): Promise<TaxReturnView> =>
+  (await accountingApi.get(`/accounting/fiscal-years/${fiscalYearId}/tax-return`)).data;
