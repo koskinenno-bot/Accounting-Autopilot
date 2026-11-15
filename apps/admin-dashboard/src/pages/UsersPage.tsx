@@ -99,6 +99,7 @@ const UsersPage = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteAccess, setInviteAccess] = useState<AccessDraft>({ orgRole: 'MEMBER', companyRoles: [] });
   const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
   const [editing, setEditing] = useState<{ id: string; email: string; access: AccessDraft } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -112,7 +113,7 @@ const UsersPage = () => {
 
   const invite = useMutation({
     mutationFn: () => createInvitation(orgId!, { email: inviteEmail, ...inviteAccess }),
-    onSuccess: (data) => { setCreatedLink(data.link); setError(null); refresh(); },
+    onSuccess: (data) => { setCreatedLink(data.link); setEmailSent(!!data.emailSent); setError(null); refresh(); },
     onError: (err) => setError(errorText(err)),
   });
   const save = useMutation({
@@ -219,7 +220,9 @@ const UsersPage = () => {
           {createdLink ? (
             <div className="space-y-4">
               <p className="text-sm text-slate-300">
-                Kutsu luotu. Lähetä tämä linkki osoitteeseen <b>{inviteEmail}</b>. Linkki on voimassa 14 päivää.
+                {emailSent
+                  ? <>Kutsu lähetettiin sähköpostilla osoitteeseen <b>{inviteEmail}</b>. Linkki on voimassa 14 päivää; voit myös kopioida sen alta.</>
+                  : <>Kutsu luotu. Sähköpostin lähetys ei ole käytössä, joten lähetä tämä linkki osoitteeseen <b>{inviteEmail}</b> itse. Linkki on voimassa 14 päivää.</>}
               </p>
               <div className="flex items-center space-x-2">
                 <input readOnly value={createdLink} className="flex-1 bg-slate-900/50 border border-white/10 rounded-xl py-2 px-3 text-xs" onFocus={(e) => e.target.select()} />
@@ -237,7 +240,7 @@ const UsersPage = () => {
               <AccessEditor value={inviteAccess} onChange={setInviteAccess} allowOwner={false} />
               {error && <div className="text-sm text-red-400">{error}</div>}
               <button type="submit" disabled={invite.isPending} className="w-full premium-button premium-gradient text-white">
-                {invite.isPending ? 'Luodaan…' : 'Luo kutsulinkki'}
+                {invite.isPending ? 'Lähetetään…' : 'Lähetä kutsu'}
               </button>
             </form>
           )}

@@ -459,6 +459,27 @@ palkat (esim. talonmies). Isännöintitoimiston lasku on työkorvausta ja kulkee
   `/reports`, `/reports/mark`, `/contracts`, `/contracts/report`.
 - Yksikkötestit: accounting-service 53 (henkilötunnus, ennakonpidätys, maksut, ikärajat, määräpäivät, urakkatiedot).
 
+## Sähköposti (15.11.2026)
+
+Aiemmin ilmoituspalvelu vain kirjoitti viestit lokiin, ja maksumuistutuksen ja salasanan vaihdon viestipohjat
+puuttuivat. Nyt viestit lähtevät oikeasti SMTP:n kautta (nodemailer).
+
+- **Käyttöönotto**: lisää SMTP-asetukset tiedostoon `apps\notification-service\.env` (mallit .env.example-tiedostossa)
+  ja käynnistä palvelu uudelleen. Viestintä-sivu näyttää, onko lähetys käytössä ja toimiiko kirjautuminen
+  SMTP-palvelimelle, ja sieltä voi lähettää testiviestin.
+- **Ilman SMTP-asetuksia** (testitila) mitään ei lähetetä: viestit tallennetaan kansioon `apps\notification-service\outbox`
+  .eml-tiedostoina (avautuvat Outlookissa), ja Viestintä-sivulla tila on "Ei lähetetty (testitila)".
+  Kansio on suljettu versionhallinnasta, koska viesteissä on henkilötietoja.
+- Viestit: vastikelasku, maksumuistutus, salasanan vaihto ja **käyttäjäkutsu** (kutsu lähtee nyt sähköpostilla;
+  linkin voi edelleen kopioida). Viesteissä on HTML- ja tekstiversio.
+- Jono: Redisin kanssa 3 yritystä (5 s, 10 s, 20 s). Jos Redis ei vastaa, viesti lähetetään heti suoraan.
+  Epäonnistunut viesti näkyy Viestintä-sivulla syineen (esim. väärä SMTP-salasana).
+- **Palveluntarjoaja**: testaukseen käy oma Gmail sovellussalasanalla (pieni päivittäinen raja). Tuotannossa tarvitaan
+  oma domain ja lähetyspalvelu, jossa domain vahvistetaan (SPF ja DKIM), muuten viestit menevät roskapostiin.
+  EU:ssa toimivia vaihtoehtoja ovat esim. Brevo (Ranska) ja Amazon SES (Tukholman alue).
+- Testattu SMTP-testipalvelinta vasten: kirjautuminen, kaikki viestipohjat, väärä salasana, Redis pois ja takaisin.
+  Yksikkötestit: notification-service 4.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

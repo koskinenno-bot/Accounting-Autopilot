@@ -19,6 +19,8 @@ enum NotificationStatus {
   PENDING
   SENT
   FAILED
+  /// SMTP ei käytössä: viesti tallennettu outbox-kansioon, ei lähetetty
+  OUTBOX
 }
 
 model Notification {

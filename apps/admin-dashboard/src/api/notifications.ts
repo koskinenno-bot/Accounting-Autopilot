@@ -19,3 +19,8 @@ export const getNotificationHistory = async (companyId: string) => {
   const { data } = await notificationsApi.get(`/notify/history?companyId=${companyId}`);
   return data;
 };
+
+export interface MailStatus { mode: 'smtp' | 'outbox'; ok: boolean; error?: string; from: string; queue: string }
+export const getMailStatus = async (): Promise<MailStatus> => (await notificationsApi.get('/notify/status')).data;
+export const sendTestEmail = async (companyId: string, recipient: string) =>
+  (await notificationsApi.post('/notify/test', { companyId, recipient })).data as { mode: string; notificationId: string };

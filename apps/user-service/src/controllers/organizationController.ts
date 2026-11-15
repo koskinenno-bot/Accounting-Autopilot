@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import axios from 'axios';
 import { prisma } from '../db';
 import { AuthRequest } from '../middleware/auth';
 import {
@@ -35,6 +36,27 @@ const orgCompanyIds = async (organizationId: string) =>
   new Set((await prisma.company.findMany({ where: { organizationId }, select: { id: true } })).map((c) => c.id));
 
 const invitationLink = (token: string) => `${dashboardUrl()}/invite/${token}`;
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3008/api/v1';
+
+/** Kutsuviesti ilmoituspalvelun kautta. Palauttaa lähetystavan (smtp/outbox) tai null, jos lähetys epäonnistui. */
+const sendInvitationEmail = async (email: string, link: string, inviterId: string, organizationId: string): Promise<string | null> => {
+  try {
+    const [inviter, org] = await Promise.all([
+      prisma.user.findUnique({ where: { id: inviterId }, select: { firstName: true, lastName: true, email: true } }),
+      prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+    ]);
+    const inviterName = [inviter?.firstName, inviter?.lastName].filter(Boolean).join(' ') || inviter?.email || 'Isännöitsijä';
+    const token = process.env.SERVICE_TOKEN;
+    const { data } = await axios.post(`${NOTIFICATION_SERVICE_URL}/notify/email`, {
+      companyId: 'system', recipient: email, subject: `Kutsu: ${org?.name ?? 'taloyhtiöiden kirjanpito'}`, template: 'invitation',
+      data: { inviterName, organizationName: org?.name ?? '', link, days: INVITATION_TTL_DAYS },
+    }, { headers: token ? { 'x-service-token': token } : {}, timeout: 15_000 });
+    return data?.mode ?? 'smtp';
+  } catch (err: any) {
+    console.error('Kutsuviestin lähetys epäonnistui:', err?.response?.data?.error || err?.message);
+    return null;
+  }
+};
 
 /** Kirjautuneen käyttäjän toimisto ja rooli. Ulkopuolisella (hallitus, tarkastaja) ei ole toimistoa. */
 export const getMyOrganization = handle(async (req, res) => {
@@ -141,7 +163,7 @@ export const removeUser = handle(async (req, res) => {
   res.json({ ok: true });
 });
 
-/** Kutsu: palauttaa linkin, jonka isännöitsijä lähettää kutsuttavalle. */
+/** Kutsu: lähettää kutsulinkin sähköpostilla (jos SMTP on käytössä) ja palauttaa linkin myös kopioitavaksi. */
 export const createInvitation = handle(async (req, res) => {
   const organizationId = req.params.id;
   await requireOrgAdmin(req, organizationId);
@@ -165,7 +187,9 @@ export const createInvitation = handle(async (req, res) => {
       expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * DAY),
     },
   });
-  res.status(201).json({ ...invitation, link: invitationLink(invitation.token) });
+  const link = invitationLink(invitation.token);
+  const emailMode = await sendInvitationEmail(normalized, link, req.user!.userId, organizationId);
+  res.status(201).json({ ...invitation, link, emailSent: emailMode === 'smtp', emailMode });
 });
 
 export const listInvitations = handle(async (req, res) => {

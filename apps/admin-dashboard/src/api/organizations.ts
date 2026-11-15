@@ -43,7 +43,7 @@ export const getInvitations = async (orgId: string) => (await companiesApi.get(`
 }[];
 
 export const createInvitation = async (orgId: string, body: { email: string; orgRole: OrgRole | null; companyRoles: CompanyRoleAssignment[] }) =>
-  (await companiesApi.post(`/organizations/${orgId}/invitations`, body)).data as { link: string; email: string };
+  (await companiesApi.post(`/organizations/${orgId}/invitations`, body)).data as { link: string; email: string; emailSent?: boolean; emailMode?: string | null };
 
 export const cancelInvitation = async (orgId: string, invitationId: string) =>
   (await companiesApi.delete(`/organizations/${orgId}/invitations/${invitationId}`)).data;

@@ -9,5 +9,7 @@ const company = requireCompanyAccess({ required: true });
 
 router.post('/email', company, notificationController.sendEmail as any);
 router.get('/history', company, notificationController.getHistory as any);
+router.get('/status', notificationController.getStatus as any);
+router.post('/test', company, notificationController.sendTest as any);
 
 export default router;

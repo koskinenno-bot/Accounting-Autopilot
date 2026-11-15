@@ -1,0 +1,4 @@
+<p>Hei,</p>
+<p><%= inviterName %> kutsui sinut käyttämään taloyhtiöiden kirjanpitoa<% if (organizationName) { %> (<%= organizationName %>)<% } %>.</p>
+<p><a href="<%= link %>" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px">Hyväksy kutsu</a></p>
+<p style="font-size:13px;color:#64748b">Jos painike ei toimi, avaa osoite selaimessa: <%= link %><br>Kutsu on voimassa <%= days %> päivää.</p>

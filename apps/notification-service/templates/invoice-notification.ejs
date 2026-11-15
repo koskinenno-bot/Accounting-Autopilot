@@ -1,5 +1,9 @@
-<p style="font-family: sans-serif">
-  Hyvä <%= recipientName %>,<br><br>
-  uusi vastikelasku <%= invoiceNumber %> on <%= amount %> €, eräpäivä <%= dueDate %>.<br>
-  Maksathan sen viitteellä <%= referenceNumber %>.
-</p>
+<p>Hyvä <%= recipientName %>,</p>
+<p>taloyhtiönne uusi vastikelasku:</p>
+<table style="border-collapse:collapse;font-size:15px">
+  <tr><td style="padding:2px 16px 2px 0;color:#64748b">Lasku</td><td><%= invoiceNumber %></td></tr>
+  <tr><td style="padding:2px 16px 2px 0;color:#64748b">Summa</td><td><strong><%= Number(amount).toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) %> €</strong></td></tr>
+  <tr><td style="padding:2px 16px 2px 0;color:#64748b">Eräpäivä</td><td><%= dueDate %></td></tr>
+  <tr><td style="padding:2px 16px 2px 0;color:#64748b">Viitenumero</td><td><%= referenceNumber %></td></tr>
+</table>
+<p>Maksathan laskun viitenumerolla eräpäivään mennessä.</p>
