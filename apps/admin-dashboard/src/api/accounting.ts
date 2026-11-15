@@ -140,3 +140,35 @@ export const getOverview = async (companyIds: string[]): Promise<CompanyOverview
   const { data } = await accountingApi.get('/accounting/overview', { params: { companyIds: companyIds.join(',') } });
   return data;
 };
+
+export type QueueKind = 'CLOSING' | 'INVOICE' | 'REVIEW' | 'AUTO' | 'VOUCHER' | 'BANK';
+
+export interface QueueItem {
+  key: string;
+  companyId: string;
+  kind: QueueKind;
+  priority: 1 | 2 | 3;
+  title: string;
+  detail?: string;
+  date?: string;
+  dueDate?: string;
+  amount?: number;
+  entryId?: string;
+  count?: number;
+  assignedTo: string | null;
+  snoozedUntil: string | null;
+  note: string | null;
+}
+
+/** Poikkeusjono: kaikkien yhtiöiden tehtävät, kiireellisin ensin. */
+export const getQueue = async (companyIds: string[], includeSnoozed = false): Promise<QueueItem[]> => {
+  if (companyIds.length === 0) return [];
+  const { data } = await accountingApi.get('/accounting/queue', {
+    params: { companyIds: companyIds.join(','), ...(includeSnoozed ? { includeSnoozed: 'true' } : {}) },
+  });
+  return data;
+};
+
+export const updateQueueTask = async (body: {
+  companyId: string; itemKey: string; assignedTo?: string | null; snoozedUntil?: string | null; note?: string | null;
+}) => (await accountingApi.put('/accounting/queue/task', body)).data;

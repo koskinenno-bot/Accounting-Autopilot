@@ -184,3 +184,22 @@ export const cancelInvitation = handle(async (req, res) => {
   await prisma.invitation.deleteMany({ where: { id: invitationId, organizationId, acceptedAt: null } });
   res.json({ ok: true });
 });
+
+/** Toimiston jäsenet nimineen (tehtävien jakoon). Näkyy kaikille toimiston jäsenille. */
+export const listMembers = handle(async (req, res) => {
+  const organizationId = req.params.id;
+  if (!req.user) throw new HttpError(401, 'Tunnistautuminen vaaditaan');
+  if (req.user.role !== 'SUPER_ADMIN' && !(await getOrgRole(req.user.userId, organizationId))) {
+    throw new HttpError(403, 'Et ole tämän toimiston jäsen');
+  }
+  const members = await prisma.organizationMember.findMany({ where: { organizationId }, include: { user: true } });
+  res.json(members
+    .filter((m) => m.user.isActive)
+    .map((m) => ({
+      id: m.userId,
+      email: m.user.email,
+      name: [m.user.firstName, m.user.lastName].filter(Boolean).join(' ') || m.user.email,
+      orgRole: m.role,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'fi')));
+});

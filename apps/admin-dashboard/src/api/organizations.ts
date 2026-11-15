@@ -56,3 +56,6 @@ export const getPublicInvitation = async (token: string) => (await authApi.get(`
 
 export const acceptInvitation = async (token: string, body: { password: string; firstName?: string; lastName?: string; mfaToken?: string }) =>
   (await authApi.post(`/invitations/${token}/accept`, body)).data;
+
+export const getOrganizationMembers = async (orgId: string) =>
+  (await companiesApi.get(`/organizations/${orgId}/members`)).data as { id: string; email: string; name: string; orgRole: OrgRole }[];

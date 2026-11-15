@@ -88,11 +88,16 @@ const OverviewPage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-start justify-between gap-4">
+       <div>
         <h2 className="text-2xl font-bold">Kaikki yhtiöt</h2>
         <p className="text-slate-400 mt-1">
           {organization?.name ? `${organization.name}: ` : ''}{companies.length} yhtiötä. Eniten huomiota vaativat ensin.
         </p>
+       </div>
+       {companies.some((c) => c.myRole === 'MANAGER' || c.myRole === 'ASSISTANT') && (
+         <Link to="/queue" className="premium-button premium-gradient text-white whitespace-nowrap">Avaa työjono</Link>
+       )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, CheckCircle, CheckCheck, FileText, Link2, Loader2, Save, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useCompany } from '../hooks/useCompany';
 import { deleteEntry, getAccounts, getLedgerByStatus, postAutoApprovable, postEntry, updateEntryLines } from '../api/accounting';
 import { getInvoices, updateInvoiceStatus } from '../api/invoices';
@@ -297,6 +298,13 @@ const PendingEntriesPage = () => {
   const sorted = [...(entries || [])].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
   const sureCount = sorted.filter((e) => e.autoApprovable).length;
 
+  // Työjonosta tultaessa (?entry=<id>) korostetaan ja vieritetään kyseiseen vientiin
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('entry');
+  useEffect(() => {
+    if (focusId && entries) document.getElementById(`entry-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusId, entries]);
+
   const approveSure = useMutation({
     mutationFn: () => postAutoApprovable(companyId as string),
     onSuccess: (r) => {
@@ -357,14 +365,15 @@ const PendingEntriesPage = () => {
         <div className="glass-card p-8 text-center text-slate-400">{t('pending.empty')}</div>
       ) : (
         sorted.map((entry) => (
-          <EntryCard
-            key={entry.id}
-            entry={entry}
-            accounts={accounts || []}
-            openInvoices={openInvoices}
-            invoicesError={invoicesLoadError ? `Laskuja ei voitu hakea: ${errorText(invoicesLoadError)}` : null}
-            onDone={setNotice}
-          />
+          <div key={entry.id} id={`entry-${entry.id}`} className={entry.id === focusId ? 'ring-2 ring-primary-500 rounded-2xl' : undefined}>
+            <EntryCard
+              entry={entry}
+              accounts={accounts || []}
+              openInvoices={openInvoices}
+              invoicesError={invoicesLoadError ? `Laskuja ei voitu hakea: ${errorText(invoicesLoadError)}` : null}
+              onDone={setNotice}
+            />
+          </div>
         ))
       )}
     </div>

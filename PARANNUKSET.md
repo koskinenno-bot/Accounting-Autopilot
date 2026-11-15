@@ -188,6 +188,28 @@ user-service 4 (roolisäännöt), accounting 18 (sis. käyttöoikeustasot). Lis�
 vanhan käyttäjän siirtymä, rekisteröinti, yhtiöiden luonti, hallituksen ja assistentin kutsut, lukuoikeuden esto,
 tilikauden sulkemisen esto assistentilta, toisen toimiston yhtiön esto, viimeisen omistajan suoja.
 
+## Poikkeusjono (moduuli 2, 15.11.2026)
+
+Isännöitsijä käsittelee kaikkien yhtiöiden tehtävät yhdestä listasta: dashboard → **Työjono**.
+Tehtävät lasketaan suoraan kirjanpidosta, joten jonoa ei tarvitse ylläpitää käsin.
+
+| Tehtävä | Milloin syntyy | Kiireellisyys |
+| --- | --- | --- |
+| Tilinpäätös | Tilikausi päättynyt eikä suljettu (määräaika 4 kk, KPL) | Kiireellinen alle 30 pv ennen määräaikaa tai myöhässä |
+| Ostolasku | Maksamaton lasku erääntyy 7 pv sisällä tai on erääntynyt | Erääntynyt = kiireellinen |
+| Tarkistettava kirjaus | Luonnos, josta automaatio ei ole varma | Yli 30 pv vanha = kiireellinen |
+| Puuttuva tosite | Kirjattu pankkimeno ilman tositetta | Yli 30 pv vanha = tällä viikolla |
+| Tiliote | Viimeisin pankkitapahtuma yli 10 pv vanha tai ei tiliotteita | Yli 30 pv = tällä viikolla |
+| Varmat kirjaukset | Yhtiön varmat luonnokset yhtenä tehtävänä, "Hyväksy kaikki" | Kun ehdit |
+
+Jokaisen tehtävän voi antaa toimiston jäsenelle, siirtää myöhemmäksi (huomenna, viikko, kuukausi) ja siihen voi
+kirjoittaa muistiinpanon. Suodattimet: kaikki / minulle / jakamatta, tyyppi, yhtiö. Jonossa näkyvät vain yhtiöt,
+joissa käyttäjä on isännöitsijä tai assistentti. "Käsittele" avaa kyseisen viennin Käsittelemättömät-sivulla korostettuna.
+
+Rajapinnat: accounting-service `GET /accounting/queue?companyIds=…` ja `PUT /accounting/queue/task`,
+user-service `GET /organizations/:id/members`. Uusi taulu `QueueTask` (accounting-service), luodaan `kaynnista.ps1`:llä.
+Säännöt: `apps/accounting-service/src/queue.ts`, testit `test/queue.test.ts`.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

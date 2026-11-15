@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import * as entryController from '../controllers/entryController';
 import * as fiscal from '../controllers/fiscalController';
 import { getOverview } from '../controllers/overviewController';
+import { getQueue, updateTask } from '../controllers/queueController';
 import { getAccounts } from '../services/chartOfAccountsService';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
@@ -22,6 +23,9 @@ router.get('/ledger', company, entryController.getLedger as any);
 router.get('/stats', company, entryController.getStats as any);
 // Kaikkien yhtiöiden tilanne isännöitsijän etusivulle (tarkistaa jokaisen yhtiön erikseen)
 router.get('/overview', getOverview as any);
+// Poikkeusjono: kaikkien yhtiöiden tehtävät ja niiden jako toimiston sisällä
+router.get('/queue', getQueue as any);
+router.put('/queue/task', updateTask as any);
 
 router.get('/fiscal-years', company, entryController.listFiscalYears as any);
 router.post('/fiscal-years', company, entryController.createFiscalYear as any);

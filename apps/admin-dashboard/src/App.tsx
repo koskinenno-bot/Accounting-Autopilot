@@ -7,6 +7,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import OverviewPage from './pages/OverviewPage';
 import UsersPage from './pages/UsersPage';
+import QueuePage from './pages/QueuePage';
 import InvitePage from './pages/InvitePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -43,6 +44,7 @@ function App() {
             <Route path="/" element={<ProtectedRoute><OverviewPage /></ProtectedRoute>} />
             <Route path="/company" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+            <Route path="/queue" element={<ProtectedRoute><QueuePage /></ProtectedRoute>} />
             <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
             <Route path="/accounting" element={<ProtectedRoute><div className="glass-card p-8 text-center"><h2 className="text-2xl font-bold">Kirjanpidon hallinta</h2><p className="text-slate-400 mt-2">Tämä osio on työn alla.</p></div></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />

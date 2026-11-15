@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Building2, Inbox, BookOpen, UserCog, Eye } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, CreditCard, FileText, Settings, LogOut, Shield, Mail, History, ArrowRightLeft, CalendarCheck, Building2, Inbox, BookOpen, UserCog, Eye, ListTodo } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -49,6 +49,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   // valikko vain piilottaa sivut, joita käyttäjä ei voi käyttää.
   const officeItems = [
     { icon: LayoutDashboard, label: 'Kaikki yhtiöt', path: '/', show: true },
+    { icon: ListTodo, label: 'Työjono', path: '/queue', show: (companies ?? []).some((c) => c.myRole === 'MANAGER' || c.myRole === 'ASSISTANT') },
     { icon: Building2, label: t('nav.companies'), path: '/companies', show: isOrgAdmin },
     { icon: UserCog, label: 'Käyttäjät', path: '/users', show: isOrgAdmin },
   ].filter((i) => i.show);

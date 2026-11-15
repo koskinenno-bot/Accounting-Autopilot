@@ -182,3 +182,19 @@ model AccountingLine {
   entry         AccountingEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   account       Account         @relation(fields: [companyId, accountNumber], references: [companyId, accountNumber])
 }
+
+// Poikkeusjonon tehtävän tila: kenelle se on annettu ja milloin siitä muistutetaan.
+// Itse tehtävät lasketaan kirjanpidosta (ks. src/queue.ts); tämä tallentaa vain ihmisen päätökset.
+model QueueTask {
+  id           String    @id @default(uuid())
+  companyId    String
+  itemKey      String    // esim. "entry:<id>", "voucher:<id>", "invoice:<id>", "closing:<id>", "bank", "auto"
+  assignedTo   String?   // user-servicen käyttäjä
+  assignedBy   String?
+  snoozedUntil DateTime?
+  note         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  @@unique([companyId, itemKey])
+  @@index([assignedTo])
+}
