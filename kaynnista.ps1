@@ -65,10 +65,18 @@ if ((Test-Path $bankEnv) -and -not (Select-String -Path $bankEnv -Pattern '^DATA
 }
 $prismaServices = 'user-service','accounting-service','audit-service','invoicing-service','bank-service','voucher-service','document-service','notification-service'
 if (-not $SkipDb) {
+  # Käynnissä oleva palvelu lukitsee Prisman tiedostot (EPERM). Pysähdytään selkeään ohjeeseen.
+  $ajossa = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*$root*" }
+  if ($ajossa) {
+    Write-Host "`nOhjelman palveluita on vielä käynnissä ($(@($ajossa).Count) kpl). Sulje palveluiden ikkunat (tai lopeta Node.js Tehtävienhallinnassa) ja aja skripti uudelleen." -ForegroundColor Red
+    exit 1
+  }
   foreach ($svc in $prismaServices) {
     Step "Prisma: $svc"
     Push-Location "apps/$svc"
     npx prisma generate
+    if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Prisma-clientin luonti epäonnistui ($svc). Onko jokin palvelu vielä käynnissä?" }
     # db push = kehityksen skeemasynkronointi; pysähtyy (ei poista dataa) jos muutos vaatisi tietojen poistoa
     npx prisma db push --skip-generate
     if ($LASTEXITCODE -ne 0) { Write-Host "  VAROITUS: $svc skeeman päivitys epäonnistui, katso virhe yltä" -ForegroundColor Yellow }
