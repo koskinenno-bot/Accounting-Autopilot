@@ -37,3 +37,6 @@ _varmuuskopio_claude_*/
 inbox/*
 !inbox/LUEMINUT.md
 varmuuskopiot/
+
+# Käynnistysskriptin loki
+kaynnistys.log

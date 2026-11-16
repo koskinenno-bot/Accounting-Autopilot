@@ -9,6 +9,8 @@ param([switch]$SkipInstall, [switch]$SkipDb, [switch]$Kevyt)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 Set-Location $root
+# Koko tuloste myös tiedostoon kaynnistys.log, jotta virheen voi lukea ikkunan sulkemisen jälkeen
+try { Start-Transcript -Path (Join-Path $root 'kaynnistys.log') -Force | Out-Null } catch { }
 
 function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 
