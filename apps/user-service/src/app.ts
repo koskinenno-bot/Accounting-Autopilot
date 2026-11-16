@@ -4,6 +4,7 @@ import companyRoutes from './routes/companyRoutes';
 import shareholderRoutes from './routes/shareholderRoutes';
 import organizationRoutes from './routes/organizationRoutes';
 import invitationRoutes from './routes/invitationRoutes';
+import portalRoutes from './routes/portalRoutes';
 import { prisma } from './db';
 import { connectProducer, disconnectProducer } from './utils/kafka';
 
@@ -15,6 +16,7 @@ export const mount = (app: Express) => {
   app.use('/api/v1/shareholders', json, shareholderRoutes);
   app.use('/api/v1/organizations', json, organizationRoutes);
   app.use('/api/v1/invitations', json, invitationRoutes);
+  app.use('/api/v1/portal', json, portalRoutes);
 };
 
 export const start = async () => { await connectProducer(); };

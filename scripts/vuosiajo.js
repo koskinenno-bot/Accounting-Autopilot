@@ -770,6 +770,47 @@ async function taxReturn() {
 }
 
 // ---------------------------------------------------------------------------
+// 8. Osakasportaali
+// ---------------------------------------------------------------------------
+async function portal() {
+  log('8. Osakasportaali');
+  const { data: sent } = await api('/shareholders/portal-invitations', { method: 'POST', body: { companyId: company.id } });
+  console.log(`Kutsuja ${sent.sent}, ohitettu ${sent.skipped.length}`);
+  if (!sent.devLinks?.length) { note('VIRHE', 'Osakasportaali: kehitysympäristön kutsulinkkejä ei palautettu'); return; }
+  // A 3 maksoi tammikuun myöhässä: osakas kirjautuu ja näkee omat laskunsa
+  const apt = APTS.find((a) => a.apt === LATE.apt);
+  const email = `${apt.owner.toLowerCase().replace(/[^a-zåäö]+/g, '.')}@example.com`;
+  const link = sent.devLinks.find((l) => l.email === email)?.link;
+  if (!link) { note('VIRHE', `Osakasportaali: kutsulinkki puuttuu (${email})`); return; }
+  const inviteToken = link.split('/').pop();
+  const { data: acc } = await api(`/portal/invitations/${inviteToken}/accept`, { method: 'POST', body: { password: 'Osakas2025!', firstName: apt.owner.split(' ')[0] }, as: null });
+  const osakas = acc.token;
+  const { data: mine } = await api('/invoices/portal', { as: osakas });
+  const c = mine.companies[0];
+  const invs = c?.invoices ?? [];
+  console.log(`Osakas ${email}: huoneisto ${c?.apartments.join(', ')}, laskuja ${invs.length}, avoinna ${eur(c?.openTotal ?? 0)}`);
+  check('Osakasportaali: oman huoneiston laskut (12 kk)', invs.length, 12);
+  if (invs.some((i) => i.apartment !== apt.apt)) note('VIRHE', 'Osakasportaali: näkyi toisen huoneiston lasku');
+  const { data: status } = await api(`/shareholders/portal-status?companyId=${company.id}`);
+  if (status.shareholders.find((s) => s.email === email)?.status !== 'ACTIVE') note('VIRHE', 'Osakasportaali: tila ei ole Käytössä hyväksynnän jälkeen');
+  // Osakas ei näe kirjanpitoa eikä muiden tietoja
+  const denied = [
+    `/accounting/ledger?companyId=${company.id}`, `/shareholders?companyId=${company.id}`, `/invoices?companyId=${company.id}`,
+    `/invoices/reskontra?companyId=${company.id}`, `/reports/income-statement?companyId=${company.id}`, `/vouchers?companyId=${company.id}`,
+    `/accounting/fiscal-years?companyId=${company.id}`,
+  ];
+  for (const p of denied) {
+    const { status: st } = await api(p, { as: osakas, allow: [401, 403, 404, 502] });
+    if (st < 400) note('VIRHE', `Osakasportaali: osakas pääsi rajapintaan ${p.split('?')[0]} (${st})`);
+  }
+  const { data: comps } = await api('/companies', { as: osakas, allow: [403] });
+  if (Array.isArray(comps) && comps.length) note('VIRHE', 'Osakasportaali: osakas näkee yhtiöitä hallintapaneelissa');
+  const { status: cs } = await api('/companies', { method: 'POST', as: osakas, allow: [400, 403], body: { name: 'As Oy Testi', businessId: randomBusinessId() } });
+  if (cs < 400) note('VIRHE', 'Osakasportaali: osakas pystyi luomaan yhtiön');
+  console.log(`Käyttöoikeudet: ${denied.length} kirjanpidon rajapintaa estetty, yhtiön luonti estetty`);
+}
+
+// ---------------------------------------------------------------------------
 // 7. Tarkistus
 // ---------------------------------------------------------------------------
 // Raportin rivit: { account, label, amount, previous } (ryhmät toistavat samat rivit, joten vain rows)
@@ -837,6 +878,7 @@ async function verifyReports(when) {
     await closingPackage();
     await taxReturn();
   }
+  await portal();
   const errors = findings.filter((f) => f.level === 'VIRHE');
   const failed = checks.filter((c) => !c.ok);
   log('Yhteenveto');

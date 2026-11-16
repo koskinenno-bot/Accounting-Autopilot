@@ -33,12 +33,15 @@ import VatPage from './pages/VatPage';
 import PayrollPage from './pages/PayrollPage';
 import BankReconciliationPage from './pages/BankReconciliationPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages';
+import { PortalInvitePage, PortalPage } from './pages/PortalPages';
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // Osakas (osakasportaalin käyttäjä) ei näe hallintapaneelia
+  if (user?.role === 'SHAREHOLDER') return <Navigate to="/portal" replace />;
   return <Layout>{children}</Layout>;
 };
 
@@ -54,6 +57,8 @@ function App() {
             <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/portal" element={<PortalPage />} />
+            <Route path="/portal/invite/:token" element={<PortalInvitePage />} />
             
             <Route path="/" element={<ProtectedRoute><OverviewPage /></ProtectedRoute>} />
             <Route path="/company" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

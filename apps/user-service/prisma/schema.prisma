@@ -163,3 +163,18 @@ model PasswordReset {
 
   @@index([userId])
 }
+
+/// Osakasportaalin kutsu: osakas (Shareholder.email) luo tunnuksen ja näkee omat vastikelaskunsa.
+/// Tunnisteesta tallennetaan vain SHA-256-tiiviste.
+model PortalInvitation {
+  id         String    @id @default(uuid())
+  companyId  String
+  email      String
+  tokenHash  String    @unique
+  invitedBy  String
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([companyId, email])
+}

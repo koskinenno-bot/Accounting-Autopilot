@@ -25,7 +25,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Käyttäjä heti tallennuksesta: reititys (esim. osakkaan ohjaus portaaliin) tietää roolin ensimmäisellä piirrolla
+  const [user, setUser] = useState<User | null>(() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
+  });
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 
   useEffect(() => {

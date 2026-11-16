@@ -660,6 +660,34 @@ myyntisaamiset kirjautuvat edelleen tarkistettaviksi (tuntematon viite).
 Yksikkötestit: accounting 64 (uudet: tuttu toimittaja, viestin tunniste), bank 22 (uusi: camt-viite), invoicing 10,
 ml 12 (uudet: pankin nimi ei ole pankkikulu, siivous ja lumityöt), reporting 23. Vuosiajo: 60/60 tarkistusta.
 
+## Osakasportaali (16.11.2026)
+
+Tiekartan vaiheen 1 viimeinen kohta. Osakas näkee omien huoneistojensa vastikelaskut, avoimen ja erääntyneen saldon,
+suoritukset ja maksutiedot (saaja, tilinumero, viite ja **virtuaaliviivakoodi**, jonka voi kopioida verkkopankkiin).
+Sivu toimii puhelimella.
+
+**Käyttöönotto isännöitsijälle:** Vastikkeet → Osakasluettelo → *Osakasportaali* → "Kutsu kaikki" (tai osakas kerrallaan).
+Kutsu lähtee osakasluettelon sähköpostiin ja on voimassa 30 päivää. Osakas luo tunnuksen linkistä (`/portal/invite/<tunniste>`)
+ja kirjautuu jatkossa tavallisella kirjautumissivulla, joka ohjaa hänet portaaliin. Taulukossa näkyy kunkin osakkaan tila
+(käytössä, kutsuttu, kutsu vanhentui, ei kutsuttu) ja uudelleenlähetys. Ilman SMTP-asetuksia viestit menevät
+`outbox`-kansioon, ja kehitysympäristössä linkit näkyvät myös sivulla.
+
+**Tietoturva:**
+- Osakas ei saa yhtiöroolia eikä toimistoa: kaikki kirjanpidon, raporttien, tositteiden, osakasluettelon ja laskutuksen
+  rajapinnat hylkäävät hänet, eikä hän voi luoda yhtiöitä. Vuosiajo testaa 7 rajapintaa ja yhtiön luonnin.
+- Laskut rajataan huoneistoon ja huoneiston nykyisiin omistajiin (laskun vastaanottajan sähköposti). Huoneiston edellisen
+  omistajan laskut eivät näy uudelle omistajalle.
+- Kutsun tunnisteesta tallennetaan vain tiiviste. Jos sähköpostilla on jo tunnus, osakas vahvistaa kutsun omalla salasanallaan.
+- Osakasluettelon uudelleentuonti säilyttää portaaliyhteyden (sähköpostin perusteella).
+
+Rajapinnat: user-service `GET /shareholders/portal-status`, `POST /shareholders/portal-invitations`,
+`GET|POST /portal/invitations/:token(/accept)`, `GET /portal/me`; invoicing-service `GET /invoices/portal`.
+Uusi taulu PortalInvitation (luodaan `KAYNNISTA-KEVYT.bat`:lla). Virtuaaliviivakoodi: `apps/invoicing-service/src/barcode.ts`
+(versiot 4 ja 5, testattu Finanssialan esimerkillä). Vuosiajo: 61/61 tarkistusta.
+
+Ei vielä: osakas ei voi päivittää omia yhteystietojaan eikä nähdä yhtiön tiedotteita tai tilinpäätöstä (tulee hallituksen
+päätöksellä myöhemmin), eikä kutsu lähde automaattisesti uudelle osakkaalle.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

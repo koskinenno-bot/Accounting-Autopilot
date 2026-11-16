@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as invoiceController from '../controllers/invoiceController';
 import * as fees from '../controllers/feeController';
 import * as reskontra from '../controllers/reskontraController';
+import { getPortalInvoices } from '../controllers/portalController';
 import { requireAuth, requireCompanyAccess } from '../middleware/requireAuth';
 
 const router = Router();
@@ -9,6 +10,9 @@ const router = Router();
 router.use(requireAuth);
 // :id-reitit tarkistavat laskun yhtiön käsittelijässä
 const company = requireCompanyAccess({ required: true });
+
+// Osakasportaali: omat laskut (rajaus user-servicen /portal/me mukaan, ei yhtiöroolia)
+router.get('/portal', getPortalInvoices as any);
 
 // Vastikeperusteet ja laskutusajo (käyttöoikeus tarkistetaan käsittelijässä: perusteet vain isännöitsijä)
 router.get('/fees', fees.getFeeSetup as any);

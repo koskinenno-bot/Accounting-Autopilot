@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Upload } from 'lucide-react';
 import { importShareholders, updateApartment } from '../../api/fees';
 import type { Apartment, FeeSetup, ImportSummary } from '../../api/fees';
-import { ErrorBox, InfoBox, errorText, inputClass, smallButton } from './common';
+import { ErrorBox, InfoBox, errorText, fmtDate, inputClass, smallButton } from './common';
+import { getPortalStatus, sendPortalInvitations } from '../../api/portal';
 
 const EXAMPLE = 'Huoneisto;Pinta-ala;Osakkeet;Omistaja;Sähköposti;Henkilöt;Autopaikat\nA 1;35,5;1-350;Aino Esimerkki;aino@esimerkki.fi;1;0';
 
@@ -55,6 +56,80 @@ const ApartmentRow = ({ companyId, apartment, canWrite, onSaved }: { companyId: 
   );
 };
 
+const PORTAL_STATUS: Record<string, { text: string; cls: string }> = {
+  ACTIVE: { text: 'Käytössä', cls: 'text-emerald-300' },
+  INVITED: { text: 'Kutsuttu', cls: 'text-primary-300' },
+  EXPIRED: { text: 'Kutsu vanhentui', cls: 'text-amber-300' },
+  NONE: { text: 'Ei kutsuttu', cls: 'text-slate-400' },
+};
+
+/** Osakasportaalin kutsut: osakas näkee omat vastikelaskunsa ja maksutiedot, ei kirjanpitoa. */
+const PortalCard = ({ companyId }: { companyId: string }) => {
+  const status = useQuery({ queryKey: ['portalStatus', companyId], queryFn: () => getPortalStatus(companyId) });
+  const [result, setResult] = useState<string | null>(null);
+  const [links, setLinks] = useState<{ email: string; link: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const send = useMutation({
+    mutationFn: (emails?: string[]) => sendPortalInvitations(companyId, emails),
+    onSuccess: (r) => {
+      setError(null);
+      setResult(`Kutsuja lähetettiin ${r.sent}.${r.skipped.length ? ` Ohitettiin ${r.skipped.length}: ${r.skipped.map((s) => `${s.email} (${s.reason})`).join(', ')}.` : ''}`);
+      setLinks(r.devLinks ?? []);
+      status.refetch();
+    },
+    onError: (err) => setError(errorText(err)),
+  });
+  const rows = status.data?.shareholders ?? [];
+  const notInvited = rows.filter((r) => r.status === 'NONE' || r.status === 'EXPIRED').length;
+  return (
+    <div className="glass-card p-5 space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="font-semibold">Osakasportaali</h3>
+        <span className="text-sm text-slate-400">{rows.filter((r) => r.status === 'ACTIVE').length}/{rows.length} käytössä</span>
+        <button type="button" className={`${smallButton} ml-auto`} disabled={send.isPending || !notInvited} onClick={() => send.mutate(undefined)}>
+          {send.isPending ? 'Lähetetään…' : `Kutsu kaikki (${notInvited})`}
+        </button>
+      </div>
+      <p className="text-sm text-slate-400">
+        Osakas saa sähköpostiin linkin, luo tunnuksen ja näkee huoneistonsa vastikelaskut, avoimen saldon ja maksutiedot
+        (viite ja virtuaaliviivakoodi). Kirjanpitoa tai muiden huoneistojen tietoja osakas ei näe.
+        {status.data?.noEmail ? ` ${status.data.noEmail} osakkaalta puuttuu sähköposti.` : ''}
+      </p>
+      <ErrorBox text={error} />
+      {result && <InfoBox>{result}</InfoBox>}
+      {links.length > 0 && (
+        <div className="text-xs text-slate-500 space-y-1">
+          <div>Kehitysympäristö: kutsulinkit (tuotannossa vain sähköpostiin)</div>
+          {links.map((l) => <div key={l.email} className="break-all">{l.email}: {l.link}</div>)}
+        </div>
+      )}
+      {rows.length > 0 && (
+        <table className="w-full text-sm">
+          <tbody>
+            {rows.map((r) => {
+              const st = PORTAL_STATUS[r.status];
+              return (
+                <tr key={r.email} className="border-b border-white/5">
+                  <td className="p-2">{r.apartments}</td>
+                  <td className="p-2">{r.name}</td>
+                  <td className="p-2 text-slate-400">{r.email}</td>
+                  <td className={`p-2 ${st.cls}`}>{st.text}{r.status === 'INVITED' && r.invitedAt ? ` ${fmtDate(r.invitedAt)}` : ''}</td>
+                  <td className="p-2 text-right">
+                    {r.status !== 'ACTIVE' && (
+                      <button type="button" className="text-xs text-primary-300 hover:text-primary-200" disabled={send.isPending} onClick={() => send.mutate([r.email])}>
+                        {r.status === 'NONE' ? 'Kutsu' : 'Lähetä uudelleen'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
 const ShareholdersTab = ({ companyId, setup, canWrite, onSaved }: { companyId: string; setup: FeeSetup; canWrite: boolean; onSaved: () => void }) => {
   const [csv, setCsv] = useState<string | null>(null);
   const [fileName, setFileName] = useState('');
@@ -88,6 +163,7 @@ const ShareholdersTab = ({ companyId, setup, canWrite, onSaved }: { companyId: s
 
   return (
     <div className="space-y-6">
+      {canWrite && <PortalCard companyId={companyId} />}
       {canWrite && (
         <div className="glass-card p-5 space-y-3">
           <h3 className="font-semibold">Tuo osakasluettelo isännöintijärjestelmästä (CSV)</h3>

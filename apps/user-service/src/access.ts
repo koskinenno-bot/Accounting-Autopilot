@@ -46,7 +46,8 @@ export const ensureOrganization = async (userId: string): Promise<void> => {
   // Käyttäjä, jolla on vain muiden toimistojen yhtiöitä, on ulkopuolinen.
   if (memberships.length > 0 && orphanCompanies.length === 0) return;
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return;
+  // Osakasportaalin käyttäjä (osakas) ei ole isännöintitoimisto
+  if (!user || user.role === 'SHAREHOLDER') return;
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
   await prisma.$transaction(async (tx) => {
     const org = await tx.organization.create({ data: { name: `${name} (toimisto)` } });
