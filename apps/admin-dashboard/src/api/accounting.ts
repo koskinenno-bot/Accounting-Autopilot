@@ -314,6 +314,12 @@ export const previewMigration = async (companyId: string, text: string, signMode
 export const importMigration = async (body: {
   companyId: string; text: string; signMode: SignMode; mapping: Record<string, string>; startDate: string; endDate: string; createOpening: boolean;
 }) => (await accountingApi.post('/accounting/migration/import', body)).data as { lines: number; result: number; mappings: number; openingEntryId: string | null };
+export interface OpenPayableRow { line: number; supplierName: string; invoiceNumber: string | null; amount: number; dueDate: string | null; referenceNumber: string | null; iban: string | null }
+export interface OpenPayablesPreview { items: OpenPayableRow[]; total: number; openingPayables: number; alreadyImported: number; errors: string[]; warnings: string[] }
+export const previewOpenPayables = async (companyId: string, text: string) =>
+  (await accountingApi.post('/accounting/migration/payables/preview', { companyId, text })).data as OpenPayablesPreview;
+export const importOpenPayables = async (companyId: string, text: string) =>
+  (await accountingApi.post('/accounting/migration/payables', { companyId, text })).data as { created: number; total: number };
 export const undoMigration = async (fiscalYearId: string) =>
   (await accountingApi.delete(`/accounting/migration/${fiscalYearId}`)).data;
 

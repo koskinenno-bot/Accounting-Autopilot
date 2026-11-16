@@ -265,6 +265,16 @@ async function migrate() {
   const open = ledger.find((e) => e.entryType === 'OPENING');
   for (const l of open?.lines || []) opening[l.accountNumber] = r2((opening[l.accountNumber] || 0) + Number(l.debit) - Number(l.credit));
   bankBalance = opening['1900'] || 0;
+
+  // Avaustaseen ostovelat laskuittain vanhan järjestelmän reskontrasta (maksut täsmäytyvät tiliotteelta)
+  const payablesCsv = `Toimittaja;Laskunumero;Summa;Eräpäivä;Viite
+Kiinteistöhuolto Vanha Oy;2024-1288;${fiAmount(-(opening['2800'] || 0))};15.1.${YEAR};`;
+  const { data: pp } = await api('/accounting/migration/payables/preview', { method: 'POST', body: { companyId: company.id, text: payablesCsv } });
+  if (pp.errors.length) note('VIRHE', `Avoimet ostolaskut: ${pp.errors.join('; ')}`);
+  else {
+    const { data: ip } = await api('/accounting/migration/payables', { method: 'POST', body: { companyId: company.id, text: payablesCsv } });
+    console.log(`Avoimet ostolaskut vanhasta järjestelmästä: ${ip.created} kpl, ${eur(ip.total)} (= avaustaseen ostovelat)`);
+  }
   console.log(`Avaustase: pankki ${eur(bankBalance)}, laina ${eur(-(opening['2500'] || 0))}, myyntisaamiset ${eur(opening['1700'] || 0)}, ostovelat ${eur(-(opening['2800'] || 0))}`);
 }
 
@@ -367,6 +377,7 @@ async function approveAndPay(m) {
   const toPay = [];
   for (const inv of data.invoices) {
     if (inv.status === 'PAID' || inv.paymentBatch) continue;
+    if (inv.invoiceDate < `${YEAR}-01-01`) continue; // vanhan järjestelmän lasku: maksettu tiliotteella
     const meta = metaByNo.get(inv.invoiceNumber);
     if (!meta) { note('VIRHE', `Ostolasku ${inv.supplierName} ${inv.invoiceNumber}: laskunumeroa ei tunnistettu`); continue; }
     if (meta.isoDate > iso(YEAR, 12, 31)) continue; // seuraavan vuoden lasku (jaksotus)
@@ -506,7 +517,7 @@ async function month(m) {
   if (m === 1 && opening['1700']) {
     entries.push({ cd: 'CRDT', amount: opening['1700'], date: iso(YEAR, 1, 9), name: 'Matti Demo', ref: reference('2024121') });
   }
-  // ... ja vanhat ostovelat (avaustaseen 2800) maksetaan tammikuussa: tosite on vanhassa järjestelmässä
+  // ... ja vanhat ostovelat (avaustaseen 2800, tuotu laskuittain) maksetaan tammikuussa
   if (m === 1 && opening['2800']) {
     entries.push({ cd: 'DBIT', amount: -opening['2800'], date: iso(YEAR, 1, 15), name: 'Kiinteistöhuolto Vanha Oy', message: 'Lasku 2024-12 joulukuun huolto', oldPayable: true });
   }
@@ -586,7 +597,6 @@ async function processDrafts(m, ms) {
     // Tiliotteen tositteettomat menot: oikea tili viestin perusteella (kuten isännöitsijä tarkistaisi)
     const bankDebit = !meta && e.lines.find((l) => Number(l.debit) > 0 && l.accountNumber !== '1900');
     const want = /lyhennys/i.test(text) ? ['2500', 'lainan lyhennys'] : /korko/i.test(text) ? ['8000', 'lainan korko']
-      : /2024-12 joulukuun huolto/i.test(text) ? ['2800', 'vanhan järjestelmän ostovelka']
       : /arvonlisävero|verohallinto/i.test(text) ? ['2885', 'ALV-maksu'] : /palvelumaksu/i.test(text) ? ['4900', 'pankkikulu'] : null;
     if (bankDebit && want) {
       ack = true;
@@ -734,10 +744,10 @@ async function closingPackage() {
   }
   const { status: sg, data: signed } = await api(`/accounting/fiscal-years/${fiscalYear.id}/closing-package`, { method: 'PUT', body: { signed: true }, allow: [400, 409] });
   if (sg !== 200) note('VIRHE', `Allekirjoitetuksi merkintä: ${signed.error}`);
-  else console.log(`Tilinpäätös merkitty allekirjoitetuksi ${signed.signedAt?.slice(0, 10)}`);
-  // Dashboard arkistoi allekirjoituksen jälkeen (Tilinpäätöspaketti -> Arkistoi)
-  const { status: as, data: arch } = await api('/documents/closing-archive', { method: 'POST', body: { companyId: company.id, fiscalYearId: fiscalYear.id }, allow: [400, 409, 500, 502] });
-  if (as !== 200 && as !== 201) note('VIRHE', `Tilinpäätöksen arkistointi: ${arch?.error ?? as}`);
+  else console.log(`Tilinpäätös merkitty allekirjoitetuksi ${signed.package?.signedAt?.slice(0, 10) ?? signed.signedAt?.slice(0, 10) ?? ''}`);
+  const arch = signed?.archive;
+  // Palvelin arkistoi allekirjoituksen yhteydessä (vastauksessa archive)
+  if (!arch || arch.error) note('VIRHE', `Tilinpäätöksen arkistointi allekirjoituksen yhteydessä: ${arch?.error ?? 'vastauksessa ei arkistointitietoa'}`);
   else {
     console.log(`Arkistoitu: ${arch.archived.join(', ')}; säilytys ${String(arch.retentionUntil).slice(0, 10)} asti`);
     if (arch.archived.length < 4) note('VIRHE', `Tilinpäätöksen arkistointi: odotettiin 4 asiakirjaa, arkistoitiin ${arch.archived.length}`);

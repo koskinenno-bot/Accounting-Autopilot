@@ -3,7 +3,9 @@ import { EntryStatus } from '../../prisma/client';
 import { prisma } from '../db';
 import { assertCompanyAccess } from '../middleware/requireAuth';
 import { buildOpeningLines } from '../closing';
-import { aggregate, migrationLines, openingRowsFrom, parseTrialBalance, suggestTarget, totals } from '../migration';
+import { aggregate, migrationLines, openingRowsFrom, parseOpenPayables, parseTrialBalance, suggestTarget, totals } from '../migration';
+import { supplierKey } from '../purchaseMatching';
+import { ACCOUNTS } from '../accounts';
 import type { SignMode } from '../migration';
 
 /**
@@ -189,7 +191,11 @@ export const undoMigration = handle(async (req, res) => {
   }
   const next = await prisma.fiscalYear.findFirst({ where: { companyId: fy.companyId, startDate: new Date(fy.endDate.getTime() + DAY) } });
   if (next && next.status !== 'OPEN') throw new HttpError(409, 'Seuraava tilikausi on jo suljettu');
+  if (await prisma.purchaseInvoice.count({ where: { companyId: fy.companyId, extractor: 'MIGRATION', status: 'PAID' } })) {
+    throw new HttpError(409, 'Vanhan järjestelmän ostolaskuja on jo maksettu, joten siirtoa ei voi perua');
+  }
   await prisma.$transaction(async (tx) => {
+    await tx.purchaseInvoice.deleteMany({ where: { companyId: fy.companyId, extractor: 'MIGRATION' } });
     if (next) {
       await tx.accountingEntry.deleteMany({
         where: { fiscalYearId: next.id, entryType: 'OPENING', description: { contains: 'siirto vanhasta järjestelmästä' } },
@@ -201,4 +207,77 @@ export const undoMigration = handle(async (req, res) => {
     await tx.fiscalYear.delete({ where: { id: fy.id } });
   });
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Avoimet ostolaskut vanhasta järjestelmästä
+// ---------------------------------------------------------------------------------------------------------------
+
+const MIGRATED_PAYABLE = 'MIGRATION';
+
+/** Avoimen tilikauden avaustaseen ostovelat (sentteinä) ja jo tuodut laskut. */
+const openingPayables = async (companyId: string) => {
+  const fy = await prisma.fiscalYear.findFirst({ where: { companyId, status: 'OPEN' }, orderBy: { startDate: 'asc' } });
+  if (!fy) return null;
+  const lines = await prisma.accountingLine.findMany({
+    where: { companyId, accountNumber: ACCOUNTS.PAYABLES, entry: { entryType: 'OPENING', fiscalYearId: fy.id } },
+    select: { debit: true, credit: true },
+  });
+  const cents = lines.reduce((s, l) => s + Math.round(Number(l.credit) * 100) - Math.round(Number(l.debit) * 100), 0);
+  const imported = await prisma.purchaseInvoice.findMany({ where: { companyId, extractor: MIGRATED_PAYABLE }, select: { totalAmount: true } });
+  return { fiscalYear: fy, cents, imported: imported.length, importedCents: imported.reduce((s, i) => s + Math.round(Number(i.totalAmount) * 100), 0) };
+};
+
+const payablesPreview = async (companyId: string, text: string) => {
+  const parsed = parseOpenPayables(text);
+  const opening = await openingPayables(companyId);
+  const errors = [...parsed.errors];
+  if (!opening) errors.push('Yhtiöllä ei ole avointa tilikautta');
+  else if (!opening.cents) errors.push('Avaustaseessa ei ole ostovelkoja (2800). Tee ensin siirto avaustaseineen.');
+  else if (opening.imported) errors.push(`Avoimet ostolaskut on jo tuotu (${opening.imported} kpl)`);
+  else if (parsed.items.length && parsed.totalCents !== opening.cents) {
+    errors.push(`Laskujen summa ${(parsed.totalCents / 100).toFixed(2)} € ei täsmää avaustaseen ostovelkoihin ${(opening.cents / 100).toFixed(2)} €`);
+  }
+  return { parsed, opening, errors };
+};
+
+/** POST /migration/payables/preview { companyId, text } */
+export const previewOpenPayables = handle(async (req, res) => {
+  const { companyId, text } = req.body ?? {};
+  if (!(await assertCompanyAccess(req, res, companyId, 'write'))) return;
+  if (typeof text !== 'string' || text.length > 500_000) throw new HttpError(400, 'Liitä avoimet ostolaskut tekstinä');
+  const { parsed, opening, errors } = await payablesPreview(companyId, text);
+  res.json({
+    items: parsed.items.map(({ cents, ...i }) => ({ ...i, amount: cents / 100 })),
+    total: parsed.totalCents / 100, openingPayables: (opening?.cents ?? 0) / 100, alreadyImported: opening?.imported ?? 0,
+    errors, warnings: parsed.warnings,
+  });
+});
+
+/**
+ * POST /migration/payables { companyId, text } : avaustaseen ostovelat laskuittain ostolaskuiksi (kulu on jo
+ * vanhassa kirjanpidossa, joten kirjausta ei tehdä). Kun lasku maksetaan, pankkitäsmäytys löytää sen viitteellä
+ * tai summan ja toimittajan perusteella: D 2800 / K 1900, varma kirjaus. Aiemmin maksu ehdotettiin kulutilille.
+ * Laskut voi myös maksaa maksuaineistolla (hyväksytty vanhassa järjestelmässä). Vain isännöitsijä.
+ */
+export const importOpenPayables = handle(async (req, res) => {
+  const { companyId, text } = req.body ?? {};
+  if (!(await assertCompanyAccess(req, res, companyId, 'manage'))) return;
+  if (typeof text !== 'string' || text.length > 500_000) throw new HttpError(400, 'Liitä avoimet ostolaskut tekstinä');
+  const { parsed, opening, errors } = await payablesPreview(companyId, text);
+  if (errors.length) throw new HttpError(400, errors.slice(0, 3).join('; '));
+  const fallbackDate = new Date(opening!.fiscalYear.startDate.getTime() - DAY);
+  const created = await prisma.$transaction(parsed.items.map((i, n) => prisma.purchaseInvoice.create({
+    data: {
+      companyId, supplierName: i.supplierName, supplierKey: supplierKey(i.supplierName),
+      // Laskunumero on yksilöivä (toimittaja + numero); puuttuva korvataan rivin numerolla
+      invoiceNumber: i.invoiceNumber || `SIIRTO-${n + 1}`,
+      invoiceDate: i.invoiceDate ? new Date(i.invoiceDate) : fallbackDate,
+      dueDate: i.dueDate ? new Date(i.dueDate) : null,
+      totalAmount: i.cents / 100, referenceNumber: i.referenceNumber, iban: i.iban,
+      expenseAccount: ACCOUNTS.PAYABLES, confidence: 1, extractor: MIGRATED_PAYABLE,
+      status: 'BOOKED', approvalStatus: 'APPROVED',
+    },
+  })));
+  res.status(201).json({ created: created.length, total: parsed.totalCents / 100 });
 });

@@ -186,8 +186,10 @@ const SignTab = ({ view, readOnly, canWrite, canManage, onSave }: {
     onSuccess: (_d, body) => {
       setError(null);
       setMessage(body.signed === true ? 'Merkitty allekirjoitetuksi. Arkistoidaan…' : body.signed === false ? 'Lukitus avattu' : 'Tallennettu');
-      // Allekirjoitettu tilinpäätös, tase-erittelyt, päiväkirja ja pääkirja arkistoon 10 vuodeksi (KPL 2:10 §)
-      if (body.signed === true) archive.mutate();
+      // Palvelin arkistoi allekirjoitetun tilinpäätöksen (KPL 2:10 §); jos se epäonnistui, yritetään täältä uudelleen
+      const done = (_d as any)?.archive;
+      if (body.signed === true && done && !done.error) setMessage(`Merkitty allekirjoitetuksi ja arkistoitu: ${[...done.archived, ...done.skipped].join(', ')}.`);
+      else if (body.signed === true) archive.mutate();
       else setTimeout(() => setMessage(null), 3000);
     },
     onError: (err) => setError(errText(err)),
@@ -393,8 +395,9 @@ const FinancialStatementsPage = () => {
     enabled: !!companyId && !!fyId,
   });
   const save = async (body: ClosingPackageUpdate) => {
-    await updateClosingPackage(fyId!, body);
+    const result = await updateClosingPackage(fyId!, body);
     await queryClient.invalidateQueries({ queryKey: ['closingPackage', companyId, fyId] });
+    return result;
   };
   const readOnly = !canWrite || !!data?.package.signedAt;
 

@@ -69,11 +69,14 @@ export const assessAutoApproval = (
   return { autoApprovable: issues.length === 0, issues };
 };
 
-/** Tutun toimittajan raja: näin monta aiempaa hyväksyttyä laskua samalla tilillä ja tilinumerolla. */
-export const TRUSTED_SUPPLIER_MIN_INVOICES = 2;
+/**
+ * Tutun toimittajan raja: näin monta aiempaa hyväksyttyä laskua samalla tilillä ja tilinumerolla. Uuden toimittajan
+ * ensimmäinen lasku tarkistetaan aina käsin; sen jälkeen toinen samanlainen lasku on varma (aiemmin raja oli 2).
+ */
+export const TRUSTED_SUPPLIER_MIN_INVOICES = 1;
 
 /**
- * Toistuva toimittaja (kaukolämpö, isännöinti, siivous): vähintään kaksi aiempaa käsin hyväksyttyä laskua
+ * Toistuva toimittaja (kaukolämpö, isännöinti, siivous): aiempi käsin hyväksytty lasku
  * samalle kulutilille, sama saajan tilinumero kuin aiemmin, ja summa enintään 2-kertainen aiempien
  * suurimpaan verrattuna. Silloin luonnos on "varma" myös ilman tekoälyä. Uusi tilinumero, uusi tili tai
  * poikkeuksellisen suuri summa vaatii aina ihmisen tarkistuksen (laskupetosten torjunta).

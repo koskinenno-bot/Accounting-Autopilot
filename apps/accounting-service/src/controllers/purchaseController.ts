@@ -58,7 +58,10 @@ export const listPurchases = handle(async (req, res) => {
     policy,
     myRole: roleOf(req),
     invoices: invoices.map((i) => {
-      const state = approvalState(Number(i.totalAmount), policy.boardLimit, i.approvals.map((a) => ({ role: a.role, decision: a.decision as any, userId: a.userId })));
+      // Vanhan järjestelmän avoin lasku on hyväksytty siellä (siirto vanhasta)
+      const state = i.extractor === 'MIGRATION'
+        ? { status: 'APPROVED' as const, waitingFor: [], needsBoard: false }
+        : approvalState(Number(i.totalAmount), policy.boardLimit, i.approvals.map((a) => ({ role: a.role, decision: a.decision as any, userId: a.userId })));
       const batch = batches.find((b) => b.id === i.paymentBatchId);
       return {
         id: i.id, supplierName: i.supplierName, supplierBusinessId: i.supplierBusinessId, invoiceNumber: i.invoiceNumber,

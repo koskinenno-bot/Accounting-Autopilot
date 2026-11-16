@@ -633,18 +633,29 @@ tiliote on tosite). Ajo kestää noin 2 minuuttia.
 - **Yhtiön omat laskut** (vastikelaskut, vuokralaskut) ovat "varmoja", kun kaikki tulotilit löytyvät tilikartasta.
 - **Viitesuoritus yhtiön omaan laskuun** on varma. Tuntematon viite (esim. vanhan järjestelmän lasku) kirjataan edelleen
   myyntisaamisiin, mutta jää tarkistettavaksi ("Viitettä ei löydy yhtiön laskuista").
-- **Tuttu toimittaja:** ostolasku on varma myös ilman tekoälyä, kun toimittajalta on vähintään kaksi aiempaa käsin
-  hyväksyttyä laskua samalle kulutilille, saajan tilinumero on sama kuin ennen ja summa on enintään kaksinkertainen
+- **Tuttu toimittaja:** ostolasku on varma myös ilman tekoälyä, kun toimittajalta on aiempi käsin
+  hyväksytty lasku samalle kulutilille, saajan tilinumero on sama kuin ennen ja summa on enintään kaksinkertainen
   aiempien suurimpaan nähden. Uusi tilinumero, uusi tili tai poikkeuksellinen summa vaatii aina ihmisen (laskupetokset).
   Maksun hyväksyntäkierto (isännöitsijä/hallitus) ei muutu. (`purchaseMatching.ts` isTrustedSupplier)
 
-### Huomiot, joita ei vielä korjattu
-- Vanhan järjestelmän ostovelkojen maksu tammikuussa ehdotetaan kulutilille (esim. 4100), ja se korjataan käsin
-  tilille 2800. Avaustaseen ostovelat voisi jatkossa tuoda laskuittain, jolloin maksut täsmäytyisivät automaattisesti.
-- Tilinpäätöksen arkistointi tehdään selaimesta allekirjoituksen jälkeen (Arkistoi-nappi). Jos selain suljetaan
-  välissä, arkistointi jää tekemättä, kunnes nappia painetaan. Palvelin voisi arkistoida itse allekirjoituksen yhteydessä.
-- Ilman tekoälyavainta uuden toimittajan kaksi ensimmäistä laskua hyväksytään käsin (sääntöpohjainen luku).
+### Jatkokorjaukset (16.11.2026, ilta)
+Edellisen ajon kolme avointa huomiota korjattu:
+- **Vanhan järjestelmän ostovelat laskuittain.** Siirto vanhasta -sivulla on uusi kohta *4. Avoimet ostolaskut*:
+  liitä vanhan reskontran avoimet laskut (Toimittaja, Laskunumero, Summa, Eräpäivä, Viite, IBAN; sarakkeet tunnistetaan
+  otsikoista). Laskujen summan on täsmättävä avaustaseen ostovelkoihin (2800). Laskut tulevat Ostolaskut-sivulle valmiiksi
+  hyväksyttyinä (kulu on jo vanhassa kirjanpidossa), ja kun ne maksetaan, tiliotteen maksu kohdistuu laskuun automaattisesti
+  (D 2800 / K 1900, varma). Ennen maksu ehdotettiin kulutilille. Siirron peruminen poistaa myös nämä laskut (ei, jos jo maksettu).
+  Rajapinnat: `POST /accounting/migration/payables/preview` ja `POST /accounting/migration/payables` (isännöitsijä).
+- **Arkistointi palvelimella allekirjoituksen yhteydessä.** Kun tilinpäätös merkitään allekirjoitetuksi, kirjanpitopalvelu
+  arkistoi PDF:t heti (vastauksessa `archive`). Jos arkistointi epäonnistuu, allekirjoitus pysyy ja dashboard yrittää
+  uudelleen; Arkistoi-nappi toimii edelleen. Selaimen sulkeminen ei enää jätä tilinpäätöstä arkistoimatta.
+- **Uuden toimittajan laskut.** Toimittaja on tuttu jo yhden käsin hyväksytyn laskun jälkeen (ennen kaksi), kun saajan
+  tilinumero ja kulutili ovat samat ja summa on enintään kaksinkertainen. Ensimmäinen lasku tarkistetaan aina käsin.
+- Vuosiajo: käsin hyväksyttäviä 52 vuodessa (ennen 62): tammikuussa 13 (uudet toimittajat), sen jälkeen 3–5 kuukaudessa.
+  60/60 tarkistusta täsmää.
 
+Jäljelle jää: ilman tekoälyavainta uuden toimittajan ensimmäinen lasku hyväksytään käsin. Vanhan järjestelmän avoimet
+myyntisaamiset kirjautuvat edelleen tarkistettaviksi (tuntematon viite).
 ### Testit
 Yksikkötestit: accounting 64 (uudet: tuttu toimittaja, viestin tunniste), bank 22 (uusi: camt-viite), invoicing 10,
 ml 12 (uudet: pankin nimi ei ole pankkikulu, siivous ja lumityöt), reporting 23. Vuosiajo: 60/60 tarkistusta.

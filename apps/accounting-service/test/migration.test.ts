@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregate, migrationLines, nameSimilarity, openingRowsFrom, parseAmount, parseTrialBalance, suggestTarget } from '../src/migration';
+import { aggregate, migrationLines, nameSimilarity, openingRowsFrom, parseAmount, parseDate, parseOpenPayables, parseTrialBalance, suggestTarget } from '../src/migration';
 import { buildOpeningLines } from '../src/closing';
 
 test('summat: suomalaiset ja vanhat muodot', () => {
@@ -91,4 +91,16 @@ test('virheet: mäppäämätön tili ja täsmäämätön luettelo', () => {
   assert.throws(() => aggregate(p.rows, { ...MAP, 7700: '' }), /Mäppäämättä 1 tiliä: 7700/);
   const bad = parseTrialBalance('1910;Pankki;100\n2000;Osakepääoma;-90', 'DEBIT_POSITIVE');
   assert.throws(() => migrationLines(aggregate(bad.rows, { 1910: '1910', 2000: '2000' })), /ei täsmää.*ero 10.00/);
+});
+
+test('avoimet ostolaskut: sarakkeet otsikoista, summat ja päivät', () => {
+  const r = parseOpenPayables('Avoimet 31.12.2024\nToimittaja;Laskupäivä;Laskunumero;Summa;Eräpäivä;Viite;Tilinumero\nHuolto Oy;20.12.2024;H-1;4 120,00;15.1.2025;1232;FI21 1234 5600 0007 85\nSähkö Oy;;S-9;2000;2025-01-20;;\nYhteensä;;;6 120,00;;;');
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.items.length, 2);
+  assert.equal(r.totalCents, 612000);
+  assert.deepEqual([r.items[0].invoiceNumber, r.items[0].invoiceDate, r.items[0].dueDate, r.items[0].iban], ['H-1', '2024-12-20', '2025-01-15', 'FI2112345600000785']);
+  assert.equal(r.items[1].referenceNumber, null);
+  assert.equal(parseDate('31.2.2025'), null);
+  assert.match(parseOpenPayables('Tili;Saldo\n2800;100').errors.join(), /Otsikkoriviä/);
+  assert.match(parseOpenPayables('Toimittaja;Summa\nA;-5').errors.join(), /positiivinen/);
 });

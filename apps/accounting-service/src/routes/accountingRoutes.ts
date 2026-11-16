@@ -84,6 +84,8 @@ router.patch('/accounts/:id', updateAccount as any);
 router.get('/migration', migration.listMigrations as any);
 router.post('/migration/preview', migration.previewMigration as any);
 router.post('/migration/import', migration.importMigration as any);
+router.post('/migration/payables/preview', migration.previewOpenPayables as any);
+router.post('/migration/payables', migration.importOpenPayables as any);
 router.delete('/migration/:fiscalYearId', migration.undoMigration as any);
 
 router.get('/purchases', purchases.listPurchases as any);

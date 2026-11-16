@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle, Upload } from 'lucide-react';
 import { useCompany } from '../hooks/useCompany';
-import { getMigrations, importMigration, previewMigration, undoMigration } from '../api/accounting';
-import type { MigrationPreview, SignMode } from '../api/accounting';
+import { getMigrations, importMigration, importOpenPayables, previewMigration, previewOpenPayables, undoMigration } from '../api/accounting';
+import type { MigrationPreview, OpenPayablesPreview, SignMode } from '../api/accounting';
 import { ErrorBox, InfoBox, eur, fmtDate, inputClass, smallButton } from '../components/fees/common';
 
 const errText = (err: any) => err?.response?.data?.error || err?.message || 'Toiminto epäonnistui';
@@ -226,6 +226,85 @@ const MigrationPage = () => {
             )}
           </div>
         </>
+      )}
+
+      {(migrations.data?.migrated ?? []).length > 0 && <OpenPayablesCard companyId={companyId!} canWrite={canWrite} canManage={canManage} />}
+    </div>
+  );
+};
+
+const PAYABLES_EXAMPLE = 'Toimittaja;Laskunumero;Summa;Eräpäivä;Viite;IBAN\nKiinteistöhuolto Oy;2024-1288;4 120,00;15.1.2025;12345 67890;FI21 1234 5600 0007 85';
+
+/**
+ * Avaustaseen ostovelat laskuittain: kun ne maksetaan, pankkitäsmäytys löytää laskun eikä ehdota kulutiliä.
+ * Summan on täsmättävä avaustaseen ostovelkoihin.
+ */
+const OpenPayablesCard = ({ companyId, canWrite, canManage }: { companyId: string; canWrite: boolean; canManage: boolean }) => {
+  const queryClient = useQueryClient();
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<OpenPayablesPreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const check = useMutation({
+    mutationFn: () => previewOpenPayables(companyId, text),
+    onSuccess: (p) => { setPreview(p); setError(null); setDone(null); },
+    onError: (err) => setError(errText(err)),
+  });
+  const save = useMutation({
+    mutationFn: () => importOpenPayables(companyId, text),
+    onSuccess: (r) => {
+      setDone(`Tuotiin ${r.created} avointa ostolaskua (${eur(r.total)}). Ne näkyvät Ostolaskut-sivulla, ja maksut täsmäytyvät tiliotteelta automaattisesti.`);
+      setPreview(null); setText(''); setError(null);
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+    },
+    onError: (err) => setError(errText(err)),
+  });
+  return (
+    <div className="glass-card p-5 space-y-4">
+      <h3 className="font-semibold">4. Avoimet ostolaskut (valinnainen)</h3>
+      <InfoBox>
+        Avaustaseen <b>ostovelat laskuittain</b> vanhan järjestelmän reskontrasta. Kun lasku maksetaan, maksu kohdistuu siihen
+        automaattisesti (ei kuluksi). Sarakkeet otsikoiden mukaan: Toimittaja, Laskunumero, Summa, Eräpäivä, Viite, IBAN.
+        Laskujen summan on oltava sama kuin avaustaseen ostovelat.
+      </InfoBox>
+      <div className="flex flex-wrap items-center gap-4">
+        <label className={`${smallButton} cursor-pointer inline-flex items-center gap-2`}>
+          <Upload className="w-4 h-4" />Lataa tiedosto
+          <input type="file" accept=".csv,.txt,.tsv" className="hidden"
+            onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await readFile(f)); e.target.value = ''; }} />
+        </label>
+      </div>
+      <textarea className={`${inputClass} w-full h-32 font-mono`} value={text} placeholder={PAYABLES_EXAMPLE} aria-label="Avoimet ostolaskut"
+        onChange={(e) => { setText(e.target.value); setPreview(null); }} />
+      <div className="flex flex-wrap gap-3">
+        <button type="button" className={smallButton} disabled={!text.trim() || check.isPending || !canWrite} onClick={() => check.mutate()}>
+          {check.isPending ? 'Tarkistetaan…' : 'Tarkista'}
+        </button>
+        {canManage && preview && preview.errors.length === 0 && (
+          <button type="button" className="premium-button premium-gradient text-white disabled:opacity-50" disabled={save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? 'Tuodaan…' : `Tuo ${preview.items.length} laskua`}
+          </button>
+        )}
+      </div>
+      <ErrorBox text={error} />
+      {done && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">{done}</div>}
+      {preview && (
+        <div className="space-y-2 text-sm">
+          {[...preview.errors, ...preview.warnings].map((m) => <div key={m} className="text-amber-200">• {m}</div>)}
+          <div className={preview.total === preview.openingPayables ? 'text-emerald-300' : 'text-rose-300'}>
+            Laskut yhteensä {eur(preview.total)} · avaustaseen ostovelat {eur(preview.openingPayables)}
+          </div>
+          <table className="w-full">
+            <tbody>
+              {preview.items.map((i) => (
+                <tr key={i.line} className="border-b border-white/5">
+                  <td className="p-2">{i.supplierName}</td><td className="p-2">{i.invoiceNumber ?? '–'}</td>
+                  <td className="p-2 text-right font-mono">{eur(i.amount)}</td><td className="p-2">{i.dueDate ? fmtDate(i.dueDate) : '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

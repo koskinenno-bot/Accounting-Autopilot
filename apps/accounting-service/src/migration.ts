@@ -192,3 +192,77 @@ export const openingRowsFrom = (balances: Map<string, number>): OpeningRow[] => 
   return [...natural].filter(([, c]) => c !== 0).sort(([a], [b]) => a.localeCompare(b))
     .map(([accountNumber, c]) => ({ accountNumber, balance: c / 100 }));
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Avoimet ostolaskut vanhasta järjestelmästä (avaustaseen ostovelat laskuittain)
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface OpenPayable {
+  line: number; supplierName: string; invoiceNumber: string | null; cents: number;
+  dueDate: string | null; invoiceDate: string | null; referenceNumber: string | null; iban: string | null;
+}
+
+/** 15.1.2025, 2025-01-15 tai 15/01/2025 -> 2025-01-15 (null, jos ei kelpaa). */
+export const parseDate = (raw: string | undefined): string | null => {
+  const s = (raw ?? '').trim();
+  let y: number; let m: number; let d: number;
+  let r: RegExpExecArray | null;
+  if ((r = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) [y, m, d] = [Number(r[1]), Number(r[2]), Number(r[3])];
+  else if ((r = /^(\d{1,2})[./](\d{1,2})[./](\d{4})$/.exec(s))) [d, m, y] = [Number(r[1]), Number(r[2]), Number(r[3])];
+  else return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? dt.toISOString().slice(0, 10) : null;
+};
+
+const COLUMN_ALIASES: Record<string, RegExp> = {
+  supplier: /^(toimittaja|saaja|nimi|maksunsaaja|supplier)/,
+  invoiceNumber: /^(laskunumero|laskun numero|laskunro|lasku$|nro|invoice)/,
+  amount: /^(summa|määrä|avoinna|avoin|saldo|amount)/,
+  dueDate: /^(eräpäivä|erapaiva|eräp|due)/,
+  invoiceDate: /^(laskupäivä|laskun päivä|päiväys|pvm)/,
+  reference: /^(viite|viitenumero|reference)/,
+  iban: /^(iban|tilinumero|tili)/,
+};
+
+/**
+ * Avoimet ostolaskut tekstinä (CSV tai Excelistä kopioitu, puolipiste tai sarkain), otsikkorivi pakollinen.
+ * Sarakkeet tunnistetaan otsikoista: Toimittaja, Laskunumero, Summa, Eräpäivä, Laskupäivä, Viite, IBAN.
+ * Summa positiivisena (velan määrä).
+ */
+export const parseOpenPayables = (text: string) => {
+  const items: OpenPayable[] = [];
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const lines = (text ?? '').split(/\r?\n/);
+  let header: Record<string, number> | null = null;
+  lines.forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) return;
+    const parts = line.split(/[;\t]/).map((p) => p.trim().replace(/^"|"$/g, ''));
+    if (!header) {
+      const h: Record<string, number> = {};
+      parts.forEach((p, idx) => {
+        const low = p.toLowerCase();
+        for (const [key, re] of Object.entries(COLUMN_ALIASES)) if (h[key] === undefined && re.test(low)) { h[key] = idx; break; }
+      });
+      if (h.supplier !== undefined && h.amount !== undefined) header = h;
+      return; // otsikkoa edeltävät rivit ohitetaan
+    }
+    const get = (k: string) => (header![k] !== undefined ? parts[header![k]] ?? '' : '');
+    const supplierName = get('supplier');
+    if (!supplierName || /^yhteensä/i.test(supplierName)) return;
+    const cents = parseAmount(get('amount'));
+    if (Number.isNaN(cents) || cents <= 0) { errors.push(`Rivi ${i + 1}: ${supplierName}: summa puuttuu tai ei ole positiivinen`); return; }
+    const dueDate = parseDate(get('dueDate'));
+    if (get('dueDate') && !dueDate) errors.push(`Rivi ${i + 1}: ${supplierName}: eräpäivä ei ole päivämäärä`);
+    if (!dueDate) warnings.push(`Rivi ${i + 1}: ${supplierName}: eräpäivä puuttuu; maksun täsmäytys tehdään summan ja nimen perusteella`);
+    items.push({
+      line: i + 1, supplierName, invoiceNumber: get('invoiceNumber') || null, cents, dueDate,
+      invoiceDate: parseDate(get('invoiceDate')), referenceNumber: get('reference').replace(/\s/g, '') || null,
+      iban: get('iban').replace(/\s/g, '').toUpperCase() || null,
+    });
+  });
+  if (!header) errors.push('Otsikkoriviä ei löytynyt: tarvitaan vähintään sarakkeet Toimittaja ja Summa');
+  else if (!items.length && !errors.length) errors.push('Luettelossa ei ole laskuja');
+  return { items, errors, warnings, totalCents: items.reduce((s, x) => s + x.cents, 0) };
+};

@@ -62,7 +62,8 @@ test('tuttu toimittaja: sääntöpohjainen luku on varma vain samalla tilillä, 
     { expenseAccount: '4500', iban: 'FI2112345600000785', totalAmount: 4200 },
   ];
   assert.equal(isTrustedSupplier(prev, '4500', 'FI2112345600000785', 5200), true);
-  assert.equal(isTrustedSupplier(prev.slice(0, 1), '4500', 'FI2112345600000785', 5200), false); // yksi lasku ei riitä
+  assert.equal(isTrustedSupplier(prev.slice(0, 1), '4500', 'FI2112345600000785', 5200), true); // yksi hyväksytty lasku riittää
+  assert.equal(isTrustedSupplier([], '4500', 'FI2112345600000785', 5200), false); // uusi toimittaja aina käsin
   assert.equal(isTrustedSupplier(prev, '4500', 'FI9999999999999999', 5200), false); // tilinumero vaihtui
   assert.equal(isTrustedSupplier(prev, '4600', 'FI2112345600000785', 5200), false); // eri kulutili
   assert.equal(isTrustedSupplier(prev, '4500', 'FI2112345600000785', 10001), false); // yli 2 x suurin aiempi

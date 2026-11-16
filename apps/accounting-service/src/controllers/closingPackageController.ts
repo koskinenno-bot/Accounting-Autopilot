@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import axios from 'axios';
 import { EntryStatus } from '../../prisma/client';
 import { prisma } from '../db';
 import { AccessLevel, assertCompanyAccess } from '../middleware/requireAuth';
@@ -131,8 +132,27 @@ export const updateClosingPackage = handle(async (req, res) => {
     create: { fiscalYearId: fy.id, companyId: fy.companyId, ...data },
     update: data,
   });
-  res.json(packageJson(fy, saved));
+  // Allekirjoitettu tilinpäätös arkistoidaan heti palvelimella (ennen selain teki sen erikseen, ja jos se suljettiin
+  // välissä, arkistointi jäi tekemättä). Epäonnistuminen ei peru allekirjoitusta: Arkistoi-napilla voi yrittää uudelleen.
+  let archive: { archived: string[]; skipped: string[]; retentionUntil?: string } | { error: string } | undefined;
+  if (body.signed === true) archive = await archiveSigned(req, fy.companyId, fy.id);
+  res.json({ ...packageJson(fy, saved), ...(archive ? { archive } : {}) });
 });
+
+const DOCUMENT_SERVICE_URL = () => process.env.DOCUMENT_SERVICE_URL || 'http://localhost:3007/api/v1';
+
+const archiveSigned = async (req: Request, companyId: string, fiscalYearId: string) => {
+  try {
+    const { data } = await axios.post(`${DOCUMENT_SERVICE_URL()}/documents/closing-archive`, { companyId, fiscalYearId }, {
+      headers: { Authorization: req.headers.authorization || '' }, timeout: 180_000,
+    });
+    return data as { archived: string[]; skipped: string[]; retentionUntil: string };
+  } catch (err: any) {
+    const error = err?.response?.data?.error || err?.message || 'Arkistointi epäonnistui';
+    console.error('Tilinpäätöksen arkistointi allekirjoituksen yhteydessä epäonnistui:', error);
+    return { error };
+  }
+};
 
 /** Tuloslaskelmatilien toteuma luonnollisella etumerkillä (tuotot ja kulut positiivisina), euroina. */
 export const naturalAmount = (accountNumber: string, debitMinusCreditCents: number) =>
