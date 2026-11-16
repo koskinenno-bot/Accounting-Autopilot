@@ -1,0 +1,21 @@
+# Caddy hoitaa HTTPS-varmenteen (Let's Encrypt) automaattisesti, kun domainin DNS osoittaa tähän palvelimeen.
+# asenna.sh kirjoittaa tämän tiedostoon /etc/caddy/Caddyfile ja korvaa DOMAIN-sanan.
+DOMAIN {
+	encode zstd gzip
+	# Tositteet ja tiliotteet ovat enintään 25 Mt
+	request_body {
+		max_size 30MB
+	}
+	reverse_proxy 127.0.0.1:3000 {
+		# Pitkät raportti- ja tekoälyluvut
+		transport http {
+			read_timeout 5m
+		}
+	}
+	log {
+		output file /var/log/caddy/kirjanpito.log {
+			roll_size 20MiB
+			roll_keep 10
+		}
+	}
+}

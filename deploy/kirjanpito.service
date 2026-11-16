@@ -1,0 +1,30 @@
+# systemd-palvelu: käynnistyy koneen käynnistyessä ja uudelleen kaatumisen jälkeen.
+# asenna.sh kopioi tämän polkuun /etc/systemd/system/kirjanpito.service ja korvaa APPDIR-sanan.
+[Unit]
+Description=Taloyhtiöiden kirjanpito (kaikki palvelut yhdessä prosessissa)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=kirjanpito
+Group=kirjanpito
+WorkingDirectory=APPDIR/apps/server
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --require ts-node/register/transpile-only src/index.ts
+Restart=always
+RestartSec=5
+# Sulkeminen: palvelin lopettaa myös Python-palvelut
+KillMode=mixed
+TimeoutStopSec=20
+# Kovennus: ei pääsyä muualle kuin ohjelman kansioon
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=APPDIR
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

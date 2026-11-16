@@ -556,6 +556,17 @@ raportit välityksen kautta, allekirjoitus ja arkistointi, PDF:n lataus, tositte
 toisen toimiston eristys. Varmuuskopioskriptejä ei voitu ajaa testiympäristössä (ei Windowsia eikä Dockeria):
 kokeile ne kerran ennen pilottia.
 
+## Palvelinasennus (16.11.2026)
+
+Valmis asennuspaketti Linux-palvelimelle: `deploy/asenna.sh <domain>` asentaa kaiken (tietokanta, ohjelma,
+automaattikäynnistys, HTTPS, palomuuri, päivittäinen varmuuskopio). Päivitys: `deploy/paivita.sh`.
+Ohje: **deploy/LUEMINUT.md**, myös nykyisten tietojen siirto omalta koneelta.
+
+- `scripts/palauta-varmuuskopio.sh`: palautus Linuxilla, myös Windows-koneen varmuuskopiosta.
+- Varmuuskopioon tulevat nyt myös palvelimen asetukset (tietokannan salasana kulkee dumpin mukana).
+- `apps/voucher-service/src/tools/siirraLevylle.ts`: vanhat tositteet MinIOsta levylle ennen siirtoa.
+- Palvelimen portti voidaan asettaa tiedostossa `apps/server/.env` (`PORT`).
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

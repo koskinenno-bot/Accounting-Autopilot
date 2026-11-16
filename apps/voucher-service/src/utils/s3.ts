@@ -13,7 +13,7 @@ export const LOCAL_BUCKET = "local";
 const localStorage = () => process.env.VOUCHER_STORAGE === "local";
 export const localFilesDir = () =>
   path.resolve(process.env.VOUCHER_FILES_DIR || path.join(__dirname, "..", "..", "files"));
-const localPath = (key: string) => {
+export const localPath = (key: string) => {
   const root = localFilesDir();
   const file = path.resolve(root, key);
   if (!file.startsWith(root + path.sep)) throw new Error("Virheellinen tiedostoavain");

@@ -10,10 +10,11 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { loadEnv, NODE_SERVICES } from './env';
+import { loadEnv, NODE_SERVICES, readEnvFile } from './env';
 
 const APPS = path.resolve(__dirname, '..', '..');
-const port = Number(process.env.PORT) || 3000;
+// Portti: komentorivi, sitten apps/server/.env, oletus 3000
+const port = Number(process.env.PORT || readEnvFile(path.join(APPS, 'server', '.env')).PORT) || 3000;
 const { warnings } = loadEnv(APPS, port);
 for (const w of warnings) console.warn(`VAROITUS: ${w}`);
 

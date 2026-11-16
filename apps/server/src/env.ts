@@ -102,7 +102,7 @@ export const buildEnv = (
   return { env, warnings };
 };
 
-const readEnvFile = (file: string): Record<string, string> => {
+export const readEnvFile = (file: string): Record<string, string> => {
   try {
     return dotenv.parse(fs.readFileSync(file));
   } catch {

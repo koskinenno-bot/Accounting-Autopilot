@@ -6,8 +6,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${1:-$ROOT/varmuuskopiot}"
 KEEP="${2:-30}"
 DIR="$DEST/varmuuskopio-$(date +%Y%m%d-%H%M)"
-mkdir -p "$DIR"
 umask 077
+mkdir -p "$DIR"
 
 docker exec ai-accountant-postgres pg_dumpall -U admin --clean --if-exists | gzip > "$DIR/kannat.sql.gz"
 if [ -n "$(docker ps -q -f name=ai-accountant-minio)" ]; then
@@ -20,6 +20,11 @@ fi
 if [ -d "$ROOT/apps/document-service/uploads" ]; then
   tar czf "$DIR/dokumentit.tgz" -C "$ROOT/apps/document-service" uploads
 fi
+# Palvelimen asetukset (tietokannan salasana on myös dumpissa, joten ne kuuluvat yhteen palautuksessa).
+# Sisältää salaisuuksia: säilytä kopiot salattuina. Pankin .pem-avainta ei oteta mukaan.
+conf=()
+for f in apps/server/.env deploy/.env; do [ -f "$ROOT/$f" ] && conf+=("$f"); done
+if [ ${#conf[@]} -gt 0 ]; then tar czf "$DIR/asetukset.tgz" -C "$ROOT" "${conf[@]}"; fi
 # Tyhjä dump = virhe (esim. kanta alhaalla)
 [ "$(gzip -dc "$DIR/kannat.sql.gz" | head -c 100 | wc -c)" -gt 0 ] || { echo "Tietokantadump on tyhjä" >&2; exit 1; }
 (cd "$DIR" && sha256sum -- * > SHA256SUMS.txt)

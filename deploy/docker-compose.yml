@@ -1,0 +1,26 @@
+# Tuotannon tietokanta (palvelin). Vain Postgres: Kafkaa, Kongia, Redistä ja MinIOta ei tarvita,
+# koska ohjelma ajetaan yhtenä prosessina (apps/server) ja tositteet tallentuvat levylle.
+# Salasana tulee tiedostosta deploy/.env (asenna.sh luo sen). Portti vain tälle koneelle.
+# Kontin nimi on sama kuin kehityksessä, joten scripts/varmuuskopio.sh toimii sellaisenaan.
+name: kirjanpito
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-accountant-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD puuttuu tiedostosta deploy/.env}
+      POSTGRES_DB: main_db
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d main_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+volumes:
+  postgres_data:
