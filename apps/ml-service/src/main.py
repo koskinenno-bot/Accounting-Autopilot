@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from fastapi import Depends
 
 from auth import require_auth
-from classifier import KNOWLEDGE_BASE, SUSPENSE_ACCOUNT, is_expense_account, is_revenue_account, match_keywords  # noqa: F401
+from classifier import KNOWLEDGE_BASE, SUSPENSE_ACCOUNT, is_expense_account, is_outgoing_payment_account, is_revenue_account, match_keywords  # noqa: F401
 from extractor import (ExtractionFailed, ExtractionUnavailable, classify_with_claude, extract_bank_statement,
                        extract_voucher, has_api_key)
 
@@ -59,18 +59,23 @@ async def health_check():
 
 @app.post("/api/v1/ml/classify-transaction", response_model=ClassificationResponse)
 async def classify_transaction(data: TransactionData, user: dict = Depends(require_auth)):
-    text = f"{data.description} {data.supplier or ''}".strip().lower()
     predictions = []
     seen = set()
-    allowed = {"expense": is_expense_account, "income": is_revenue_account}.get(data.kind or "", lambda _c: True)
+    allowed = {"expense": is_outgoing_payment_account, "income": is_revenue_account}.get(data.kind or "", lambda _c: True)
 
-    # 1. Avainsanaosumat (sama tili vain kerran; vain maksun suuntaan sopivat tilit)
-    for info in match_keywords(text):
-        if info["code"] in seen or not allowed(info["code"]):
-            continue
-        seen.add(info["code"])
-        conf = 0.95 if len(predictions) == 0 else 0.75
-        predictions.append(Prediction(account=info["code"], confidence=conf, label=info["label"]))
+    # 1. Avainsanaosumat (sama tili vain kerran; vain maksun suuntaan sopivat tilit).
+    #    Viesti ensin, maksun saajan nimi vasta sitten: "Rahoituspankki Oyj / Lainan korko" on korko.
+    supplier = (data.supplier or "").strip().lower()
+    message = data.description.lower()
+    if supplier and message.startswith(supplier):
+        message = message[len(supplier):]
+    for source_text in (message, supplier):
+        for info in match_keywords(source_text):
+            if info["code"] in seen or not allowed(info["code"]):
+                continue
+            seen.add(info["code"])
+            conf = 0.95 if len(predictions) == 0 else 0.75
+            predictions.append(Prediction(account=info["code"], confidence=conf, label=info["label"]))
 
     # 2. Ei avainsanaa -> tekoäly (jos avain ja tilikartta annettu)
     if not predictions and has_api_key() and data.accounts:

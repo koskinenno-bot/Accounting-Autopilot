@@ -14,11 +14,15 @@ const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http:/
 
 export const createInvoice = async (req: Request, res: Response) => {
   try {
-    const { companyId, recipientName, recipientEmail, recipientAddress, dueDate, lines } = req.body;
+    const { companyId, recipientName, recipientEmail, recipientAddress, dueDate, issueDate, lines } = req.body;
 
     if (!companyId || !recipientName || !dueDate || Number.isNaN(new Date(dueDate).getTime())) {
       return res.status(400).json({ error: 'companyId, recipientName ja kelvollinen dueDate ovat pakollisia' });
     }
+    // Laskupäivä (oletus tänään) määrää kirjauspäivän, esim. jälkikäteen laadittu kuukauden vuokralasku
+    const issued = issueDate ? new Date(issueDate) : new Date();
+    if (Number.isNaN(issued.getTime())) return res.status(400).json({ error: 'Laskupäivä on virheellinen' });
+    if (new Date(dueDate) < new Date(issued.toISOString().slice(0, 10))) return res.status(400).json({ error: 'Eräpäivä on ennen laskupäivää' });
     if (!Array.isArray(lines) || lines.length === 0) {
       return res.status(400).json({ error: 'Laskulla on oltava vähintään yksi rivi' });
     }
@@ -28,6 +32,11 @@ export const createInvoice = async (req: Request, res: Response) => {
       if (!Number.isFinite(q) || !Number.isFinite(p) || q <= 0 || p < 0) {
         return res.status(400).json({ error: `Rivi ${i + 1}: virheellinen määrä tai yksikköhinta` });
       }
+      const v = line.vatRate === undefined || line.vatRate === null || line.vatRate === '' ? 0 : Number(line.vatRate);
+      if (![0, 10, 13.5, 25.5].includes(v)) return res.status(400).json({ error: `Rivi ${i + 1}: ALV-prosentti on 0, 10, 13,5 tai 25,5` });
+      if (line.accountNumber !== undefined && line.accountNumber !== null && line.accountNumber !== '' && !/^3\d{3,5}$/.test(String(line.accountNumber))) {
+        return res.status(400).json({ error: `Rivi ${i + 1}: tulotili on 3000–3999-alueella (esim. 3550 liiketilojen vuokrat)` });
+      }
     }
 
     // 1. Yhtiökohtainen juokseva laskunumero (atominen)
@@ -36,9 +45,23 @@ export const createInvoice = async (req: Request, res: Response) => {
     // 2. Viitenumero (7-3-1)
     const referenceNumber = referenceFor(companyId, invoiceNumber);
 
-    // 3. Summa senteissä pyöristettynä (vältetään liukulukuvirheet)
-    const lineTotal = (line: any) => Math.round(parseFloat(line.unitPrice) * parseFloat(line.quantity) * 100) / 100;
-    const totalAmount = Math.round(lines.reduce((sum: number, line: any) => sum + lineTotal(line), 0) * 100) / 100;
+    // 3. Rivit senteissä: yksikköhinta on veroton, vero lisätään riville (ennen vero jäi laskulta pois
+    //    ja kaikki kirjattiin hoitovastikkeisiin tilistä riippumatta)
+    const priced = lines.map((line: any) => {
+      const netCents = Math.round(parseFloat(line.unitPrice) * parseFloat(line.quantity) * 100);
+      const vatRate = Number(line.vatRate) > 0 ? Number(line.vatRate) : 0;
+      const vatCents = Math.round((netCents * vatRate) / 100);
+      return {
+        description: String(line.description ?? ''),
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        vatRate,
+        accountNumber: line.accountNumber ? String(line.accountNumber) : '3000',
+        netCents,
+        vatCents,
+      };
+    });
+    const totalAmount = priced.reduce((s: number, l: any) => s + l.netCents + l.vatCents, 0) / 100;
 
     // 4. Create in DB
     const invoice = await prisma.invoice.create({
@@ -49,23 +72,25 @@ export const createInvoice = async (req: Request, res: Response) => {
         recipientName,
         recipientEmail,
         recipientAddress,
+        issueDate: issued,
         dueDate: new Date(dueDate),
         totalAmount,
         lines: {
-          create: lines.map((line: any) => ({
-            description: line.description,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
+          create: priced.map((l: any) => ({
+            description: l.description,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
             // Hoitovastikkeet ovat arvonlisäverottomia; aiempi oletus 24 % oli väärä (ja yleinen kanta on nyt 25,5 %).
-            vatRate: line.vatRate ?? 0,
-            totalAmount: lineTotal(line),
+            vatRate: l.vatRate,
+            totalAmount: (l.netCents + l.vatCents) / 100,
+            accountNumber: l.accountNumber,
           })),
         },
       },
       include: { lines: true },
     });
 
-    // 5. Publish event for accounting
+    // 5. Kirjanpitoon tilikohtaiset rivit (verollinen rivi jaetaan tuottoon ja ALV-velkaan)
     await publishInvoiceCreated({
       id: uuidv4(),
       timestamp: new Date().toISOString(),
@@ -75,7 +100,12 @@ export const createInvoice = async (req: Request, res: Response) => {
         amount: Number(invoice.totalAmount), // Decimal -> number, muuten JSON:ssa merkkijono
         referenceNumber: invoice.referenceNumber || '',
         dueDate: invoice.dueDate.toISOString(),
-        issueDate: invoice.issueDate.toISOString()
+        issueDate: invoice.issueDate.toISOString(),
+        description: `Lasku ${invoice.invoiceNumber} ${recipientName}`,
+        lines: priced.map((l: any) => ({
+          accountNumber: l.accountNumber, amount: (l.netCents + l.vatCents) / 100, description: l.description,
+          ...(l.vatCents ? { vatRate: l.vatRate, vatAmount: l.vatCents / 100 } : {}),
+        })),
       }
     });
 

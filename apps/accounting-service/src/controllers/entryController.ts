@@ -5,7 +5,7 @@ import axios from 'axios';
 import { prisma } from '../db';
 import { toCents, validateLines } from '../validation';
 import { assertCompanyAccess, serviceHeaders } from '../middleware/requireAuth';
-import { recordAccountChoice } from '../services/learningService';
+import { messageSignature, recordAccountChoice } from '../services/learningService';
 import { supplierKey } from '../purchaseMatching';
 import { ACCOUNTS } from '../accounts';
 import { inactiveAccountError } from '../services/chartOfAccountsService';
@@ -109,7 +109,9 @@ const learnFromCorrection = async (before: EntryWithLines, after: EntryWithLines
   const changed = after.lines.find((l, i) => before.lines[i] && before.lines[i].accountNumber !== l.accountNumber);
   if (!changed) return;
   try {
-    await recordAccountChoice(after.companyId, supplierKey(before.counterparty), before.counterparty, changed.accountNumber);
+    // Pankkiviennistä opitaan myös viestin tunniste (saman saajan eri maksut eri tileille)
+    const signature = (before as any).createdBy === 'system-bank' ? messageSignature((before as any).description, before.counterparty) : '';
+    await recordAccountChoice(after.companyId, supplierKey(before.counterparty), before.counterparty, changed.accountNumber, signature);
     const purchase = await prisma.purchaseInvoice.findFirst({ where: { accountingEntryId: after.id } });
     const expense = after.lines.find((l) => Number(l.debit) > 0);
     if (purchase && expense) {

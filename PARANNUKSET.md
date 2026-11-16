@@ -567,6 +567,88 @@ Ohje: **deploy/LUEMINUT.md**, myös nykyisten tietojen siirto omalta koneelta.
 - `apps/voucher-service/src/tools/siirraLevylle.ts`: vanhat tositteet MinIOsta levylle ennen siirtoa.
 - Palvelimen portti voidaan asettaa tiedostossa `apps/server/.env` (`PORT`).
 
+## Koko tilivuoden läpiajo (vuosiajo, 16.11.2026)
+
+Koko tilivuosi ajettiin esimerkkiyhtiöllä alusta loppuun kevyttä palvelinta (localhost:3000) vasten ilman pankkiyhteyttä,
+Verohallinnon rajapintaa ja tekoälyavainta. Ajo on nyt toistettava skripti:
+
+```powershell
+# KAYNNISTA-KEVYT.bat käynnissä
+npm run vuosiajo
+```
+
+Skripti (`scripts/vuosiajo.js`) luo joka kerta uuden käyttäjän ja yhtiön (As Oy Vuosikoe, 12 huoneistoa, liiketila,
+laina 702 000 €) ja tekee tilivuoden 2025 kuten isännöitsijä dashboardissa:
+siirto vanhasta (esimerkkisaldoluettelo 2024 → vertailukausi ja avaustase), osakasluettelo, vastikeperusteet, ALV
+(liiketila, neljännes, vähennysoikeus 12 %), käyttöomaisuus, talousarvio, hallituksen jäsenen kutsu. Joka kuukausi:
+vastikelaskutus, liiketilan verollinen vuokralasku, 7–9 ostolaskua PDF:nä (luetaan sääntöpohjaisesti), hyväksyntä
+(yli 5 000 € myös hallitus), SEPA-maksuaineisto, camt.053-tiliote (vastikkeet viitteellä, myöhästynyt ja viitteetön
+maksu, ostolaskujen maksut, lainan lyhennys ja korko, pankkikulu, ALV), käsittelemättömät ja pankkitäsmäytys.
+Neljännesvuosittain ALV-ilmoitus ja tilitys. Lopuksi jaksotus (joulukuun lämpölasku tulee tammikuussa), poistot,
+tarkistuslista, sulkeminen, toimintakertomus, allekirjoitus, PDF:t, arkistointi ja veroilmoitus 4.
+Skripti vertaa raporttien lukuja omiin laskelmiinsa (60 tarkistusta: tilikohtaiset tuotot ja kulut, tulos,
+pankki = tiliote, laina, saamiset, ostovelat, siirtovelat, ALV, vastikelaskelma, reskontra, veroilmoitus).
+Tulokset (PDF:t, maksuaineistot, tiliotteet, yhteenveto.json) kansioon `scratch/vuosiajo-<aika>/`.
+Poistumiskoodi on 1, jos jokin tarkistus ei täsmää, joten skriptiä voi käyttää regressiotestinä ennen julkaisua.
+
+**Tulos ennen korjauksia:** tulos 58 800 € väärin, 47/52 tarkistusta pielessä, pankkitäsmäytys ero joka kuukausi,
+418 käsin hyväksyttävää vientiä vuodessa. **Korjausten jälkeen:** 60/60 tarkistusta täsmää, käsin hyväksyttäviä 62
+vuodessa (tammikuussa 13, sen jälkeen 3–6 kuukaudessa: lainan lyhennys, korko, pankkikulu ja ALV-maksu, joille
+tiliote on tosite). Ajo kestää noin 2 minuuttia.
+
+### Korjatut virheet
+1. **Lainan lyhennykset ja korot kirjautuivat pankkikuluiksi.** Avainsana "pankki" osui maksun saajan nimeen
+   ("Rahoituspankki Oyj") ennen viestin sanaa "korko". Nyt viesti luokitellaan ensin ja saajan nimi vasta sitten;
+   "pankki" korvattiin sanoilla pankkikulu/palvelumaksu/tilinhoitomaksu; "lyhennys" ehdottaa tiliä 2500 (velan
+   lyhennys, ei kulu). Vaikutus esimerkissä: tulos 42 000 € liian pieni, vastikelaskelmasta puuttuivat lyhennykset ja korot,
+   veroilmoituksen korkomenot 0 €. (`apps/ml-service/src/classifier.py`, `main.py`)
+2. **Opittu tili koski kaikkia saman saajan maksuja.** Yksi korjaus (lyhennys → 2500) olisi opettanut saman tilin
+   pankin koroille ja palvelumaksuille. Nyt opitaan saaja + viestin tunniste ("lainan korko"); pelkkää saajaa käytetään
+   vain, jos avainsanoista ei löydy tiliä ja saajalle on aina valittu sama tili. (`learningService.ts`, `bankConsumer.ts`)
+3. **Käsin tehty myyntilasku (esim. liiketilan vuokra) oli väärin:** ALV ei tullut laskulle eikä kirjanpitoon, tulo
+   kirjautui aina hoitovastikkeisiin (3000) ja laskupäivä oli aina tämä päivä. Nyt rivillä on tulotili ja ALV-kanta,
+   vero lisätään laskulle ja kirjataan tilille 2880, ja laskupäivän voi antaa (`issueDate`). (`invoiceController.ts`)
+4. **Pankkitäsmäytys näytti eroa joka kuukausi** yhtiöllä, jolla on edellinen tilikausi (siirto tai suljettu kausi):
+   kirjanpidon saldo laski edellisen kauden pankkisaldon kahdesti (vertailukausi + avaustase). Nyt saldo lasketaan
+   avausviennin sisältävän tilikauden alusta. Koskee kaikkia yhtiöitä ensimmäisen tilinpäätöksen jälkeen. (`bankReconController.ts`)
+5. **Ostolaskuja katosi ruuhkassa.** Kun usean tositteen luku valmistui yhtä aikaa, tietokantatransaktio ei ehtinyt
+   alkaa ("Unable to start a transaction in the given time") ja virhe vain lokitettiin: tosite jäi ilman ostolaskua ja
+   kirjausta (tammikuussa 7/9 laskua). Nyt odotusaika on pidempi ja hetkellinen virhe heitetään tapahtumaväylälle, joka
+   yrittää uudelleen (tuplatarkistukset estävät kahdentumisen). Sama tiliotteen ja laskujen käsittelyyn. (`db.ts`, `consumers/*`)
+6. **Viesti "Vastike B 9 03/2025" tulkittiin viitteeksi 2025**, jolloin viitteetön suoritus ei mennyt selvitettäviin ja
+   lasku jäi reskontrassa avoimeksi (olisi saanut maksumuistutuksen). Vapaan viestin numero kelpaa viitteeksi vain,
+   jos tarkiste täsmää. (`bank-service/src/services/camtParser.ts`)
+7. **Siirtovelka jaksotettiin bruttona** ALV-velvolliselle yhtiölle: vähennettävä ALV kuului kuluun. Nyt ehdotus on
+   laskun summa ilman vähennettävää veroa. (`fiscalController.ts` accrualSuggestions)
+8. **Toimintakertomuksen tuntematon osio tallentui hiljaa** (esim. väärä avain), mutta ei näkynyt tilinpäätöksessä.
+   Nyt rajapinta kertoo sallitut osiot. (`closingPackageController.ts`)
+9. Siivous ehdotettiin jätehuollon tilille (4300) vaikka tilikartassa on 4250 Siivous; lisätty avainsanat lumityöt
+   (4210), toiminnan-/tilintarkastus (4030), hissi (4120), kiinteistövero (4870).
+10. Taseen sarakeotsikko PDF:ssä on nyt tilinpäätöspäivä (31.12.2025), ei kausi; "-0,00 €" ei enää tulostu.
+11. `KAYNNISTA-KEVYT.bat` odotti minuutteja ja tulosti lopuksi "Valmis" vaikka palvelin ei vastannut: /health palauttaa 503,
+    kun raporttipalvelu vielä käynnistyy, ja se tulkittiin virheeksi. Nyt mikä tahansa vastaus kelpaa, ja jos palvelin ei
+    vastaa 2 minuutissa, skripti sanoo sen. Selaimen välilehden nimen kirjoitusvirhe korjattu.
+
+### Automaation parannukset (vähemmän käsin hyväksyttävää)
+- **Yhtiön omat laskut** (vastikelaskut, vuokralaskut) ovat "varmoja", kun kaikki tulotilit löytyvät tilikartasta.
+- **Viitesuoritus yhtiön omaan laskuun** on varma. Tuntematon viite (esim. vanhan järjestelmän lasku) kirjataan edelleen
+  myyntisaamisiin, mutta jää tarkistettavaksi ("Viitettä ei löydy yhtiön laskuista").
+- **Tuttu toimittaja:** ostolasku on varma myös ilman tekoälyä, kun toimittajalta on vähintään kaksi aiempaa käsin
+  hyväksyttyä laskua samalle kulutilille, saajan tilinumero on sama kuin ennen ja summa on enintään kaksinkertainen
+  aiempien suurimpaan nähden. Uusi tilinumero, uusi tili tai poikkeuksellinen summa vaatii aina ihmisen (laskupetokset).
+  Maksun hyväksyntäkierto (isännöitsijä/hallitus) ei muutu. (`purchaseMatching.ts` isTrustedSupplier)
+
+### Huomiot, joita ei vielä korjattu
+- Vanhan järjestelmän ostovelkojen maksu tammikuussa ehdotetaan kulutilille (esim. 4100), ja se korjataan käsin
+  tilille 2800. Avaustaseen ostovelat voisi jatkossa tuoda laskuittain, jolloin maksut täsmäytyisivät automaattisesti.
+- Tilinpäätöksen arkistointi tehdään selaimesta allekirjoituksen jälkeen (Arkistoi-nappi). Jos selain suljetaan
+  välissä, arkistointi jää tekemättä, kunnes nappia painetaan. Palvelin voisi arkistoida itse allekirjoituksen yhteydessä.
+- Ilman tekoälyavainta uuden toimittajan kaksi ensimmäistä laskua hyväksytään käsin (sääntöpohjainen luku).
+
+### Testit
+Yksikkötestit: accounting 64 (uudet: tuttu toimittaja, viestin tunniste), bank 22 (uusi: camt-viite), invoicing 10,
+ml 12 (uudet: pankin nimi ei ole pankkikulu, siivous ja lumityöt), reporting 23. Vuosiajo: 60/60 tarkistusta.
+
 ## Jäljelle jäävät (isommat) jatkokehitykset
 1. ~~Yhtiökohtainen käyttöoikeus~~ (tehty), ~~tositteiden luku~~ (tehty), ~~luonnosten hyväksyntä ja tilikauden
    sulkeminen dashboardissa~~ (tehty).

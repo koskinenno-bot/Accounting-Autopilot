@@ -21,7 +21,15 @@ KNOWLEDGE_BASE = {
     "jätevesi": {"code": "4600", "label": "Vesi ja jätevesi"},
     "jätehuolto": {"code": "4300", "label": "Puhtaanapito ja jätehuolto"},
     "kiinteistöhuolto": {"code": "4100", "label": "Kiinteistönhoito ja huolto"},
-    "siivous": {"code": "4300", "label": "Puhtaanapito ja jätehuolto"},
+    # Siivouksella on oma tili ja kaavan rivi (aiemmin 4300 jätehuolto)
+    "siivous": {"code": "4250", "label": "Siivous"},
+    "lumityö": {"code": "4210", "label": "Lumityöt ja liukkauden torjunta"},
+    "hiekoitus": {"code": "4210", "label": "Lumityöt ja liukkauden torjunta"},
+    "liukkauden": {"code": "4210", "label": "Lumityöt ja liukkauden torjunta"},
+    "tilintarkastus": {"code": "4030", "label": "Tilintarkastus ja toiminnantarkastus"},
+    "toiminnantarkastus": {"code": "4030", "label": "Tilintarkastus ja toiminnantarkastus"},
+    "hissi": {"code": "4120", "label": "Hissien huolto"},
+    "kiinteistövero": {"code": "4870", "label": "Kiinteistövero"},
     "lämpö": {"code": "4500", "label": "Lämmitys"},
     "kaukolämpö": {"code": "4500", "label": "Lämmitys"},
     "helen": {"code": "4500", "label": "Lämmitys (Helen)"},
@@ -30,12 +38,20 @@ KNOWLEDGE_BASE = {
     "fortum": {"code": "4700", "label": "Sähkö ja kaasu (Fortum)"},
     "vakuutus": {"code": "4800", "label": "Vakuutukset"},
     "if": {"code": "4800", "label": "Vakuutukset (If)"},
-    "pankki": {"code": "4900", "label": "Pankkikulut"},
+    # Pelkkä "pankki" osui myös maksun saajan nimeen (esim. "Rahoituspankki Oyj"), jolloin lainan
+    # lyhennykset ja korot kirjautuivat pankkikuluiksi. Nyt vain kuluun viittaavat sanat.
+    "pankkikulu": {"code": "4900", "label": "Pankkikulut"},
     "palvelumaksu": {"code": "4900", "label": "Pankkikulut"},
+    "tilinhoitomaksu": {"code": "4900", "label": "Pankkikulut"},
     "korjaus": {"code": "7000", "label": "Korjaukset"},
     "remontti": {"code": "7000", "label": "Korjaukset"},
     "korko": {"code": "8000", "label": "Lainojen korot"},
+    # Lainan lyhennys pienentää velkaa (tase), se ei ole kulu
+    "lyhennys": {"code": "2500", "label": "Lainat rahoituslaitoksilta (lyhennys)"},
 }
+
+# Lähtevän maksun sallitut tilit: kulut sekä lainan lyhennys
+LOAN_ACCOUNTS = {"2500"}
 
 SUSPENSE_ACCOUNT = {"code": "1990", "label": "Selvitettävät erät"}
 
@@ -52,6 +68,11 @@ def keyword_matches(keyword: str, text: str) -> bool:
 def is_expense_account(code: str) -> bool:
     """Hoito- ja rahoituskulut 4000-8999 (TATO-tilikartan numeroalueet)."""
     return code.isdigit() and 4000 <= int(code) <= 8999
+
+
+def is_outgoing_payment_account(code: str) -> bool:
+    """Lähtevän pankkimaksun tili: kulu tai lainan lyhennys."""
+    return is_expense_account(code) or code in LOAN_ACCOUNTS
 
 
 def is_revenue_account(code: str) -> bool:

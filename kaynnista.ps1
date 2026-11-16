@@ -91,11 +91,20 @@ if ($Kevyt) {
   if ($LASTEXITCODE -ne 0) { throw 'Dashboardin käännös epäonnistui' }
   Step 'Käynnistetään palvelin'
   Start-Process powershell -ArgumentList '-NoExit', '-Command', "`$host.UI.RawUI.WindowTitle='AI Accountant (kaikki palvelut)'; Set-Location '$root\apps\server'; npm start"
-  for ($i = 0; $i -lt 45; $i++) {
-    try { Invoke-WebRequest -UseBasicParsing http://localhost:3000/health -TimeoutSec 2 | Out-Null; break } catch { Start-Sleep -Seconds 2 }
+  # /health vastaa 503, kun raporttipalvelu (Python) vielä käynnistyy: palvelin on silti ylhäällä.
+  # Aiemmin 503 tulkittiin "ei vastaa" -tilaksi, odotus kesti minuutteja ja lopuksi tulostettiin "Valmis" joka tapauksessa.
+  $up = $false
+  for ($i = 0; $i -lt 60; $i++) {
+    try { Invoke-WebRequest -UseBasicParsing http://localhost:3000/health -TimeoutSec 2 | Out-Null; $up = $true; break }
+    catch { if ($_.Exception.Response) { $up = $true; break }; Start-Sleep -Seconds 2 }
+  }
+  if (-not $up) {
+    Write-Host "`nPalvelin ei vastannut 2 minuutissa. Katso virhe ikkunasta 'AI Accountant (kaikki palvelut)'." -ForegroundColor Red
+    exit 1
   }
   Start-Process 'http://localhost:3000'
   Write-Host "`nValmis. Osoite: http://localhost:3000  (kaikki palvelut samassa ikkunassa; sulje ikkuna pysäyttääksesi)" -ForegroundColor Green
+  Write-Host 'Koko tilivuoden testiajo: npm run vuosiajo (luo uuden esimerkkiyhtiön, ks. PARANNUKSET.md)'
   Write-Host 'Uudet tositteet tallentuvat kansioon apps\voucher-service\files (mukana varmuuskopiossa).'
   exit 0
 }

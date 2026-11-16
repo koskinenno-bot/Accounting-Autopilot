@@ -1,5 +1,5 @@
 import { InvoiceCreatedEvent, InvoiceStatusChangedEvent } from '@ai-accountant/types';
-import { prisma } from '../db';
+import { isTransientDbError, prisma } from '../db';
 import { ACCOUNTS } from '../accounts';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
 import { accountExists } from '../services/chartOfAccountsService';
@@ -76,6 +76,10 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
     // Myyntisaaminen syntyy laskun päiväyksellä (ei käsittelyhetkellä), muuten
     // aiemmin päivätty pankkisuoritus kuittaisi saatavaa ennen sen syntymistä.
     const entryDate = issueDate ? new Date(issueDate) : new Date();
+    const revenue = await invoiceRevenueLines(companyId, amount, lines);
+    // Yhtiön oma lasku on varma kirjaus ("Hyväksy kaikki varmat"), jos kaikki tulotilit löytyivät tilikartasta.
+    // Ennen jokainen vastikelasku piti hyväksyä käsin (12 huoneistoa = 12 hyväksyntää kuukaudessa).
+    const allAccountsKnown = !revenue.some((l) => /puuttuu tilikartasta/.test(String(l.description)));
     await prisma.accountingEntry.create({
       data: {
         companyId,
@@ -85,6 +89,8 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
         description: `${description || 'Vastikelaskutus'} (Viite: ${referenceNumber})`,
         status: 'DRAFT',
         createdBy: 'system-invoicing',
+        autoApprovable: allAccountsKnown,
+        reviewNote: allAccountsKnown ? 'Yhtiön oma lasku' : 'Laskun tulotili puuttuu tilikartasta: tarkista tili',
         lines: {
           create: [
             {
@@ -94,13 +100,14 @@ export const handleInvoiceCreated = async (event: InvoiceCreatedEvent) => {
               description: `Vastikesuoritus (eräpäivä ${new Date(dueDate).toLocaleDateString('fi-FI')})`,
               companyId
             },
-            ...(await invoiceRevenueLines(companyId, amount, lines)).map((l) => ({ ...l, companyId })),
+            ...revenue.map((l) => ({ ...l, companyId })),
           ]
         }
       }
     });
   } catch (error) {
     console.error('Invoice account entry error:', error);
+    if (isTransientDbError(error)) throw error;
   }
 };
 

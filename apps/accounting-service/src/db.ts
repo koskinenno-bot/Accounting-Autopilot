@@ -13,6 +13,19 @@ const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:300
 // Yhden prosessin tilassa (apps/server) palvelun kanta on ACCOUNTING_DATABASE_URL, muuten DATABASE_URL
 export const prisma = new PrismaClient({ datasourceUrl: process.env.ACCOUNTING_DATABASE_URL || undefined });
 
+/**
+ * Hetkellinen tietokantavirhe (yhteysallas täynnä, transaktiota ei saatu aloitettua, kirjoituskonflikti).
+ * Tapahtumankäsittelijät heittävät nämä eteenpäin, jolloin väylä (Kafka tai paikallinen) yrittää uudelleen.
+ * Aiemmin virhe vain lokitettiin: vuosiajossa tammikuun ostolaskuja jäi kokonaan kirjaamatta, kun usean
+ * tositteen luku valmistui yhtä aikaa ("Unable to start a transaction in the given time").
+ */
+export const isTransientDbError = (err: any): boolean =>
+  ['P1001', 'P1017', 'P2024', 'P2028', 'P2034'].includes(err?.code)
+  || /Unable to start a transaction|Timed out fetching a new connection|could not serialize/i.test(String(err?.message));
+
+/** Interaktiivisen transaktion odotusajat: ruuhkassa odotetaan yhteyttä pidempään kuin oletus 2 s. */
+export const TX_OPTIONS = { maxWait: 15_000, timeout: 30_000 } as const;
+
 // Audit-palvelun AuditAction-enum tuntee vain nämä kolme arvoa.
 const AUDIT_ACTION_MAP: Record<string, 'CREATE' | 'UPDATE' | 'DELETE'> = {
   create: 'CREATE',

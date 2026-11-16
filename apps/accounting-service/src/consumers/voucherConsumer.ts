@@ -1,12 +1,12 @@
 import { purchaseLines } from '../vat';
 import { loadVatSettings } from '../controllers/vatController';
 import { VoucherClassifiedEvent } from '@ai-accountant/types';
-import { prisma } from '../db';
+import { isTransientDbError, prisma, TX_OPTIONS } from '../db';
 import { ACCOUNTS } from '../accounts';
 import { accountExists } from '../services/chartOfAccountsService';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
 import { getLearnedAccount } from '../services/learningService';
-import { assessAutoApproval, similarNames, supplierKey } from '../purchaseMatching';
+import { assessAutoApproval, isTrustedSupplier, similarNames, supplierKey } from '../purchaseMatching';
 
 const toDate = (s: string | null | undefined): Date | null => {
   if (!s) return null;
@@ -110,7 +110,21 @@ export const handleVoucherClassified = async (event: VoucherClassifiedEvent) => 
     const suggested = extraction.suggestedAccount && (await accountExists(companyId, extraction.suggestedAccount))
       ? extraction.suggestedAccount : null;
     const expenseAccount = learned || suggested || ACCOUNTS.SUSPENSE;
-    const { autoApprovable, issues } = assessAutoApproval(extraction, expenseAccount);
+    // Toistuva toimittaja: aiemmat hyväksytyt (kirjatut) laskut samalta toimittajalta
+    const candidates = await prisma.purchaseInvoice.findMany({
+      where: { companyId, supplierKey: key, status: { in: ['BOOKED', 'PAID'] }, accountingEntryId: { not: null } },
+      select: { expenseAccount: true, iban: true, totalAmount: true, accountingEntryId: true },
+      orderBy: { invoiceDate: 'desc' },
+      take: 6,
+    });
+    // Vain ihmisen hyväksymät (kirjatut) kuluviennit kelpaavat historiaksi
+    const postedIds = new Set((await prisma.accountingEntry.findMany({
+      where: { id: { in: candidates.map((c) => c.accountingEntryId!) }, status: { in: ['POSTED', 'LOCKED'] } },
+      select: { id: true },
+    })).map((e) => e.id));
+    const previous = candidates.filter((c) => postedIds.has(c.accountingEntryId!));
+    const trustedSupplier = isTrustedSupplier(previous.map((p) => ({ ...p, totalAmount: Number(p.totalAmount) })), expenseAccount, extraction.iban, amount);
+    const { autoApprovable, issues } = assessAutoApproval(extraction, expenseAccount, { trustedSupplier });
 
     const voucherNumber = extraction.invoiceNumber ? `OL-${key}-${extraction.invoiceNumber}` : `V-${voucherId}`;
     const description = `Ostolasku: ${extraction.supplierName}${extraction.invoiceNumber ? `, nro ${extraction.invoiceNumber}` : ''}`;
@@ -129,7 +143,7 @@ export const handleVoucherClassified = async (event: VoucherClassifiedEvent) => 
           createdBy: `system-voucher-${extraction.extractor}`,
           counterparty: extraction.supplierName,
           autoApprovable,
-          reviewNote: [learned ? `Tili opittu aiemmista korjauksista` : extraction.accountReason, ...issues]
+          reviewNote: [learned ? `Tili opittu aiemmista korjauksista` : extraction.accountReason, trustedSupplier ? 'Tuttu toimittaja, sama tili ja tilinumero kuin aiemmin' : null, ...issues]
             .filter(Boolean).join(' · ') || null,
           lines: {
             // ALV-velvollinen yhtiö: vähennettävä vero tilille 1750 vähennysoikeuden mukaan (moduuli 8)
@@ -143,9 +157,11 @@ export const handleVoucherClassified = async (event: VoucherClassifiedEvent) => 
         },
       });
       await tx.purchaseInvoice.create({ data: { ...base, expenseAccount, accountingEntryId: entry.id } });
-    });
+    }, TX_OPTIONS);
     console.log(`Ostolasku ${extraction.supplierName} ${amount} € -> luonnos D ${expenseAccount} / K ${ACCOUNTS.PAYABLES}${autoApprovable ? ' (varma)' : ''}`);
   } catch (err) {
     console.error(`Tositteen ${voucherId} kirjaus epäonnistui:`, err);
+    // Hetkellinen virhe: väylä yrittää uudelleen (tuplatarkistus estää kahdentumisen)
+    if (isTransientDbError(err)) throw err;
   }
 };

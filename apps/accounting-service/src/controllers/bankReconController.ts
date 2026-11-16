@@ -56,10 +56,23 @@ export const deleteBalance = handle(async (req, res) => {
 
 const cashWhere = (companyId: string) => ({ companyId, accountNumber: { gte: CASH_RANGE[0], lte: CASH_RANGE[1] } });
 
+/**
+ * Mistä päivästä rahatilien saldo lasketaan: sen tilikauden alusta, jolla on avausvienti (avaus sisältää
+ * edellisten kausien saldot). Aiemmin laskettiin kaikki viennit alusta asti, jolloin edellisen kauden
+ * saldo tuli kahteen kertaan (vertailukausi + avaustase) ja jokainen kuukausi näytti eroa.
+ */
+const balanceFrom = async (companyId: string, at: Date): Promise<Date | undefined> => {
+  const fy = await prisma.fiscalYear.findFirst({ where: { companyId, startDate: { lte: at }, endDate: { gte: at } } });
+  if (!fy) return undefined;
+  const opening = await prisma.accountingEntry.count({ where: { companyId, entryType: 'OPENING', entryDate: { gte: fy.startDate, lte: fy.endDate } } });
+  return opening ? fy.startDate : undefined;
+};
+
 /** Rahatilien saldo (D − K) päivään asti: kirjatut ja lukitut viennit. */
 const bookBalanceAt = async (companyId: string, at: Date) => {
+  const from = await balanceFrom(companyId, at);
   const agg = await prisma.accountingLine.aggregate({
-    where: { ...cashWhere(companyId), entry: { status: { in: ['POSTED', 'LOCKED'] }, entryDate: { lte: at } } },
+    where: { ...cashWhere(companyId), entry: { status: { in: ['POSTED', 'LOCKED'] }, entryDate: { lte: at, ...(from ? { gte: from } : {}) } } },
     _sum: { debit: true, credit: true },
   });
   return Math.round((Number(agg._sum.debit ?? 0) - Number(agg._sum.credit ?? 0)) * 100) / 100;
@@ -67,8 +80,9 @@ const bookBalanceAt = async (companyId: string, at: Date) => {
 
 /** Hyväksymättömät rahatilin viennit päivään asti (selittävät usein eron). */
 const draftsAt = async (companyId: string, at: Date) => {
+  const from = await balanceFrom(companyId, at);
   const lines = await prisma.accountingLine.findMany({
-    where: { ...cashWhere(companyId), entry: { status: 'DRAFT', entryDate: { lte: at } } },
+    where: { ...cashWhere(companyId), entry: { status: 'DRAFT', entryDate: { lte: at, ...(from ? { gte: from } : {}) } } },
     select: { debit: true, credit: true },
   });
   return { count: lines.length, net: Math.round(lines.reduce((s, l) => s + (Number(l.debit) - Number(l.credit)) * 100, 0)) / 100 };

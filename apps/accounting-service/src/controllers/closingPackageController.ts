@@ -35,13 +35,19 @@ const loadFiscalYear = async (req: Request, res: Response, level: AccessLevel) =
 };
 
 /** { avain: teksti } -kenttä: vain merkkijonoja, tyhjät pois (tyhjä = automaattinen teksti). */
-export const cleanTextMap = (value: unknown, field: string): Record<string, string> | undefined => {
+/** Toimintakertomuksen ja liitetietojen osiot (reporting-service closing.py: REPORT_SECTIONS, NOTE_SECTIONS). */
+export const REPORT_KEYS = ['general', 'property', 'repairs', 'maintenance_plan', 'budget', 'finance', 'events', 'proposal'];
+export const NOTE_KEYS = ['principles', 'fixed_assets', 'equity', 'loans', 'collateral', 'personnel', 'books'];
+
+export const cleanTextMap = (value: unknown, field: string, allowed?: string[]): Record<string, string> | undefined => {
   if (value === undefined) return undefined;
   if (value === null) return {};
   if (typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, `${field}: odotettiin objektia`);
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (!/^[A-Za-z0-9_:.-]{1,40}$/.test(k)) throw new HttpError(400, `${field}: virheellinen avain ${k}`);
+    // Tuntematon osio tallentui aiemmin hiljaa, mutta ei näkynyt tilinpäätöksessä
+    if (allowed && !allowed.includes(k)) throw new HttpError(400, `${field}: tuntematon osio ${k} (sallitut: ${allowed.join(', ')})`);
     if (v === null || v === undefined || v === '') continue;
     if (typeof v !== 'string') throw new HttpError(400, `${field}.${k}: odotettiin tekstiä`);
     if (v.length > MAX_TEXT) throw new HttpError(400, `${field}.${k}: teksti on liian pitkä`);
@@ -93,8 +99,8 @@ export const updateClosingPackage = handle(async (req, res) => {
   }
 
   const data: Record<string, unknown> = { updatedBy: actorOf(req) };
-  const report = cleanTextMap(body.report, 'report');
-  const notes = cleanTextMap(body.notes, 'notes');
+  const report = cleanTextMap(body.report, 'report', REPORT_KEYS);
+  const notes = cleanTextMap(body.notes, 'notes', NOTE_KEYS);
   const balanceNotes = cleanTextMap(body.balanceNotes, 'balanceNotes');
   const signers = cleanSigners(body.signers);
   if (report) data.report = report;

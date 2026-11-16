@@ -53,6 +53,7 @@ export interface ExtractionLike {
 export const assessAutoApproval = (
   x: ExtractionLike,
   account: string,
+  opts: { trustedSupplier?: boolean } = {},
 ): { autoApprovable: boolean; issues: string[] } => {
   const issues: string[] = [];
   if (!x.supplierName) issues.push('toimittaja puuttuu');
@@ -60,9 +61,34 @@ export const assessAutoApproval = (
   if (!x.dueDate) issues.push('eräpäivä puuttuu');
   if (!(Number(x.totalAmount) > 0)) issues.push('summa puuttuu');
   if (account === ACCOUNTS.SUSPENSE) issues.push('tiliä ei tunnistettu');
-  if (x.extractor !== 'claude') issues.push('luettu ilman tekoälyä, tarkista tiedot');
-  if (x.confidence < AUTO_APPROVE_CONFIDENCE) issues.push(`varmuus ${Math.round(x.confidence * 100)} %`);
+  // Tuttu toimittaja (ks. isTrustedSupplier): sääntöpohjainen luku riittää, kun kaikki kentät löytyivät
+  if (!opts.trustedSupplier) {
+    if (x.extractor !== 'claude') issues.push('luettu ilman tekoälyä, tarkista tiedot');
+    if (x.confidence < AUTO_APPROVE_CONFIDENCE) issues.push(`varmuus ${Math.round(x.confidence * 100)} %`);
+  }
   return { autoApprovable: issues.length === 0, issues };
+};
+
+/** Tutun toimittajan raja: näin monta aiempaa hyväksyttyä laskua samalla tilillä ja tilinumerolla. */
+export const TRUSTED_SUPPLIER_MIN_INVOICES = 2;
+
+/**
+ * Toistuva toimittaja (kaukolämpö, isännöinti, siivous): vähintään kaksi aiempaa käsin hyväksyttyä laskua
+ * samalle kulutilille, sama saajan tilinumero kuin aiemmin, ja summa enintään 2-kertainen aiempien
+ * suurimpaan verrattuna. Silloin luonnos on "varma" myös ilman tekoälyä. Uusi tilinumero, uusi tili tai
+ * poikkeuksellisen suuri summa vaatii aina ihmisen tarkistuksen (laskupetosten torjunta).
+ */
+export const isTrustedSupplier = (
+  previous: { expenseAccount: string; iban: string | null; totalAmount: number }[],
+  account: string,
+  iban: string | null | undefined,
+  amount: number,
+): boolean => {
+  const norm = (s: string | null | undefined) => String(s ?? '').replace(/\s/g, '').toUpperCase();
+  if (!iban || previous.length < TRUSTED_SUPPLIER_MIN_INVOICES) return false;
+  if (!previous.every((p) => p.expenseAccount === account && norm(p.iban) === norm(iban))) return false;
+  const max = Math.max(...previous.map((p) => Number(p.totalAmount)));
+  return amount <= max * 2;
 };
 
 export interface OpenInvoiceLike {

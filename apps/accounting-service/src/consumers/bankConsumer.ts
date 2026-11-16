@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto';
 import axios from 'axios';
 import { BankStatementReceivedEvent, BankTransaction } from '@ai-accountant/types';
-import { prisma } from '../db';
-import { ExpenseSuggestion, resolveBankAccounts } from '../bankMapping';
+import { isTransientDbError, prisma, TX_OPTIONS } from '../db';
+import { ExpenseSuggestion, ML_CONFIDENCE_THRESHOLD, resolveBankAccounts } from '../bankMapping';
 import { ACCOUNTS } from '../accounts';
 import { accountExists, getAccounts } from '../services/chartOfAccountsService';
 import { findOpenFiscalYearId } from '../services/fiscalYearService';
-import { getLearnedAccount } from '../services/learningService';
+import { getLearnedAccount, messageSignature, signatureKey } from '../services/learningService';
 import { matchPurchaseInvoice, supplierKey } from '../purchaseMatching';
 import { serviceHeaders } from '../middleware/requireAuth';
 
@@ -92,7 +92,7 @@ const bookInvoicePayment = async (
       },
     });
     await db.purchaseInvoice.update({ where: { id: invoice.id }, data: { status: 'PAID', paymentEntryId: entry.id } });
-  });
+  }, TX_OPTIONS);
   console.log(`Maksu ${tx.amount} € täsmätty ostolaskuun ${invoice.supplierName} ${invoice.invoiceNumber} (${ruleText})`);
   return true;
 };
@@ -130,12 +130,33 @@ export const handleBankStatementReceived = async (event: BankStatementReceivedEv
 
       let suggestion: ExpenseSuggestion | null = null;
       let reviewNote: string | null = null;
+      let autoApprovable = false;
+      if (tx.creditDebit === 'CRDT' && tx.referenceNumber) {
+        // Viitesuoritus yhtiön omaan laskuun (INV-<viite>) on varma: D Pankki / K Myyntisaamiset.
+        // Tuntematon viite (esim. vanhan järjestelmän lasku) kirjataan samoin, mutta tarkistettavaksi.
+        const ref = String(tx.referenceNumber).replace(/\s/g, '').replace(/^0+/, '');
+        const own = await prisma.accountingEntry.findFirst({
+          where: { companyId, voucherNumber: { in: [`INV-${ref}`, `INV-${tx.referenceNumber}`] } },
+          select: { id: true },
+        });
+        autoApprovable = Boolean(own);
+        reviewNote = own ? 'Viitesuoritus yhtiön laskuun' : 'Viitettä ei löydy yhtiön laskuista: tarkista, mihin saatavaan suoritus kuuluu';
+      }
       if (tx.creditDebit === 'DBIT') {
-        // Opittu toimittajan tili ennen ML-ehdotusta
-        const learned = await getLearnedAccount(companyId, supplierKey(counterparty));
-        suggestion = learned
-          ? { account: learned, confidence: 1, accountExists: true }
-          : await suggestExpenseAccount(companyId, tx);
+        // 1. opittu saaja + viesti, 2. avainsanat / tekoäly, 3. opittu saaja (vain jos saajalla aina sama tili)
+        const key = supplierKey(counterparty);
+        const bySignature = await getLearnedAccount(companyId, signatureKey(key, messageSignature(tx.remittanceInfo)));
+        let learned: string | null = bySignature;
+        if (bySignature) {
+          suggestion = { account: bySignature, confidence: 1, accountExists: true };
+        } else {
+          suggestion = await suggestExpenseAccount(companyId, tx);
+          const usable = suggestion && suggestion.accountExists && suggestion.confidence >= ML_CONFIDENCE_THRESHOLD && suggestion.account !== ACCOUNTS.SUSPENSE;
+          if (!usable) {
+            learned = await getLearnedAccount(companyId, key);
+            if (learned) suggestion = { account: learned, confidence: 1, accountExists: true };
+          }
+        }
         reviewNote = `Tosite puuttuu: lataa ostolasku tai kuitti (KPL 2:5 §)${learned ? ' · tili opittu aiemmista korjauksista' : ''}`;
       }
       const { debitAccount, creditAccount } = resolveBankAccounts(tx, suggestion);
@@ -152,6 +173,7 @@ export const handleBankStatementReceived = async (event: BankStatementReceivedEv
           counterparty: counterparty || null,
           needsVoucher: tx.creditDebit === 'DBIT',
           reviewNote,
+          autoApprovable,
           lines: {
             create: [
               {
@@ -174,6 +196,8 @@ export const handleBankStatementReceived = async (event: BankStatementReceivedEv
       });
     } catch (err) {
       console.error(`Failed to process bank transaction ${tx.entryReference}:`, err);
+      // Hetkellinen virhe: koko tiliote käsitellään uudelleen (jo kirjatut tapahtumat ohitetaan tositenumerolla)
+      if (isTransientDbError(err)) throw err;
     }
   }
 

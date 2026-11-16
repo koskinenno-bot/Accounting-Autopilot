@@ -11,7 +11,8 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 
 def _eur(v: float) -> str:
-    s = f"{v:,.2f}".replace(",", " ").replace(".", ",")
+    # round + 0.0: ei negatiivista nollaa ("-0,00 €")
+    s = f"{round(v, 2) + 0.0:,.2f}".replace(",", " ").replace(".", ",")
     return f"{s} €"
 
 
@@ -25,11 +26,14 @@ def _period(fy: Optional[Dict]) -> str:
     return f"Tilikausi {fmt(fy['startDate'])}–{fmt(fy['endDate'])}{status}"
 
 
-def _year(fy: Optional[Dict]) -> str:
+def _year(fy: Optional[Dict], point: bool = False) -> str:
+    """Sarakeotsikko: tuloslaskelmassa kausi, taseessa tilikauden viimeinen päivä (tase on hetkitilanne)."""
     if not fy:
         return ""
     def fmt(iso: str) -> str:
         return ".".join(str(int(p)) for p in reversed(iso[:10].split("-")))
+    if point:
+        return fmt(fy['endDate'])
     return f"{fmt(fy['startDate'])}–\n{fmt(fy['endDate'])}"
 
 
@@ -101,7 +105,8 @@ def report_flowables(kind: str, data: Dict, styles, previous_year: Optional[Dict
     """Yhden raportin taulukot (käytetään sekä erillisessä PDF:ssä että tilinpäätöspaketissa)."""
     story: List = []
     cmp = previous_year is not None
-    header = ["", _year(fiscal_year), _year(previous_year)] if cmp else None
+    point = kind == "balance-sheet"
+    header = ["", _year(fiscal_year, point), _year(previous_year, point)] if cmp else None
 
     if kind == "income-statement":
         rows, bold, italic = _section_rows(data["sections"], cmp)

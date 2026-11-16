@@ -15,6 +15,16 @@ export interface BankTransaction {
   entryReference?: string;
 }
 
+/** Kotimainen viitenumero (4–20 numeroa, tarkiste 7-3-1). */
+export const isValidFinnishReference = (s: string): boolean => {
+  const d = String(s).replace(/\s/g, '');
+  if (!/^\d{4,20}$/.test(d) || /^0+$/.test(d)) return false;
+  const body = d.slice(0, -1);
+  const w = [7, 3, 1];
+  const sum = body.split('').reverse().reduce((t, c, i) => t + Number(c) * w[i % 3], 0);
+  return (10 - (sum % 10)) % 10 === Number(d.slice(-1));
+};
+
 export const parseCamt053 = (xmlData: string): BankTransaction[] => {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -44,9 +54,10 @@ export const parseCamt053 = (xmlData: string): BankTransaction[] => {
 
     // Fallback: viite vapaamuotoisesta viestistä vain saapuville maksuille
     // (lähtevän maksun viesti on laskun viite toiselle yritykselle, ei meidän saatava).
+    // Vain tarkisteeltaan kelvollinen viite kelpaa: aiemmin mikä tahansa 4–20 numeron jono (esim. vuosiluku
+    // viestissä "Vastike B 9 03/2025") tulkittiin viitteeksi, jolloin suoritus ei mennyt selvitettäviin.
     if (!reference && creditDebit === 'CRDT' && remittanceInfo) {
-      const match = remittanceInfo.match(/[0-9]{4,20}/); // Simple regex for potential ref
-      if (match) reference = match[0];
+      reference = (remittanceInfo.match(/\b\d{4,20}\b/g) || []).find(isValidFinnishReference);
     }
 
     // Saapuvassa maksussa vastapuoli on maksaja (Dbtr), lähtevässä saaja (Cdtr)

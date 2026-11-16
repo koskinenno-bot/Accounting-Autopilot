@@ -3,6 +3,7 @@ import { AccountType, EntryStatus } from '../../prisma/client';
 import { prisma } from '../db';
 import { AccessLevel, assertCompanyAccess } from '../middleware/requireAuth';
 import { ACCOUNTS } from '../accounts';
+import { loadVatSettings } from './vatController';
 import {
   ACCRUED_EXPENSES, ACCRUED_INCOME, DEPRECIATION_ACCOUNT, balancesFromLines, buildCarryForwardLines,
   buildClosingLines, buildOpeningLines, depreciationFor, isBalanceSheetAccount, Line, OpeningRow,
@@ -243,13 +244,18 @@ const accrualSuggestions = async (fy: { id: string; companyId: string; startDate
     select: { voucherNumber: true },
   });
   const done = new Set(existing.map((e) => e.voucherNumber));
+  const vat = await loadVatSettings(fy.companyId);
   const out = [];
   for (const inv of invoices) {
     const ps = inv.servicePeriodStart!.getTime();
     const pe = inv.servicePeriodEnd!.getTime() + DAY;
     const days = Math.max(1, Math.round((pe - ps) / DAY));
     const invDate = inv.invoiceDate.getTime();
-    const total = Number(inv.totalAmount);
+    // Kuluun kuuluu laskun summa ilman vähennettävää arvonlisäveroa (vähennys tehdään laskun omalla verokaudella).
+    // Aiemmin jaksotettiin bruttosumma, jolloin ALV-velvollisen yhtiön kulu oli päättyvällä kaudella liian suuri.
+    const deductible = vat.registered && inv.vatAmount && (!vat.registeredFrom || inv.invoiceDate >= vat.registeredFrom)
+      ? Math.round(Number(inv.vatAmount) * Number(vat.deductionPercent) / 100 * 100) / 100 : 0;
+    const total = Number(inv.totalAmount) - deductible;
     let kind: AccrualKind | null = null;
     let share = 0;
     if (invDate >= endExcl && ps < endExcl && pe > fy.startDate.getTime()) {

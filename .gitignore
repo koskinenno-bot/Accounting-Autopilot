@@ -40,3 +40,6 @@ varmuuskopiot/
 
 # Käynnistysskriptin loki
 kaynnistys.log
+
+# Vuosiajon tulokset (npm run vuosiajo)
+scratch/vuosiajo-*/
