@@ -33,8 +33,14 @@ prisma.$use(async (params: any, next: any) => {
 
   const auditAction = AUDIT_ACTION_MAP[params.action];
   if (auditAction && SENSITIVE_MODELS.includes(params.model || '')) {
-    axios
-      .post(`${AUDIT_SERVICE_URL}/audit/log`, {
+    // Uudelleenyritys (1 s, 4 s), jos lokipalvelu on hetkellisesti ruuhkainen tai alhaalla; 4xx ei korjaannu yrittämällä
+    const post = (body: unknown, attempt = 0): Promise<unknown> =>
+      axios.post(`${AUDIT_SERVICE_URL}/audit/log`, body, { headers: serviceHeaders(), timeout: 20_000 }).catch((err) => {
+        const status = err?.response?.status;
+        if (attempt >= 2 || (status && status < 500)) throw err;
+        return new Promise((r) => setTimeout(r, 1000 * 4 ** attempt)).then(() => post(body, attempt + 1));
+      });
+    post({
         companyId: result?.companyId || params.args?.data?.companyId || null,
         userId: 'system-db-trigger',
         action: auditAction,
@@ -42,7 +48,7 @@ prisma.$use(async (params: any, next: any) => {
         entityId: result?.id || 'MULTIPLE',
         description: `Automaattinen tietokantatason lokitus: ${params.model}.${params.action}`,
         changes: { args: params.args },
-      }, { headers: serviceHeaders() })
+      })
       .catch((err) => console.error('Audit-lokitus epäonnistui:', err.message));
   }
 

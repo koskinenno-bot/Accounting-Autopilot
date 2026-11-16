@@ -7,6 +7,22 @@ export const prisma = new PrismaClient({ datasourceUrl: process.env.AUDIT_DATABA
 
 const ACTIONS: string[] = Object.values(AuditAction);
 
+/**
+ * Saman yhtiön tapahtumat jonoon jo prosessin sisällä. Ilman tätä ryöpyllinen samanaikaisia
+ * tapahtumia (esim. tilikarttapäivitys) varaa kaikki tietokantayhteydet odottamaan samaa
+ * lukkoa, ja Prisma luopuu transaktion aloituksesta (P2028). Tietokannan lukko varmistaa
+ * järjestyksen edelleen, jos palvelusta on käynnissä useampi kopio.
+ */
+const queues = new Map<string, Promise<unknown>>();
+const serialize = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+  const prev = queues.get(key) ?? Promise.resolve();
+  const run = prev.catch(() => undefined).then(fn);
+  const tail = run.catch(() => undefined);
+  queues.set(key, tail);
+  tail.then(() => { if (queues.get(key) === tail) queues.delete(key); });
+  return run;
+};
+
 export const logEvent = async (req: Request, res: Response) => {
   try {
     const { companyId, userId, action, entityType, entityId, description, changes } = req.body ?? {};
@@ -31,7 +47,7 @@ export const logEvent = async (req: Request, res: Response) => {
       changes: changes === undefined ? null : JSON.parse(JSON.stringify(changes)),
     };
     // Yhtiön ketjuun lisätään yksi tapahtuma kerrallaan (transaktiokohtainen lukko yhtiön tunnisteesta)
-    const auditLog = await prisma.$transaction(async (tx) => {
+    const auditLog = await serialize(fields.companyId ?? '-', () => prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'audit:' + (fields.companyId ?? '-')}))`;
       const last = await tx.auditLog.findFirst({
         where: { companyId: fields.companyId },
@@ -51,7 +67,7 @@ export const logEvent = async (req: Request, res: Response) => {
           userAgent: req.headers['user-agent'],
         },
       });
-    });
+    }, { maxWait: 10_000, timeout: 15_000 }));
 
     res.status(201).json(auditLog);
   } catch (error) {
